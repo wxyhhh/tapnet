@@ -138,29 +138,33 @@ class ProtoGCN(nn.Module):
         self.gc2 = GraphConvolution(nhid, 32)
         self.dropout = dropout
 
-        self.linear_1 = nn.Linear(nfeat, 100)
-        self.linear_2 = nn.Linear(100, 80)
-        self.linear_3 = nn.Linear(80, 50)
+        fc_layers = [2000, 1000, 300]
+        self.linear_1 = nn.Linear(nfeat, fc_layers[0])
+        self.linear_2 = nn.Linear(fc_layers[0], fc_layers[1])
+        self.linear_3 = nn.Linear(fc_layers[1], fc_layers[2])
+        self.bn_1 = nn.BatchNorm1d(fc_layers[0])
+        self.bn_2 = nn.BatchNorm1d(fc_layers[1])
 
     def forward(self, x, labels, idx_train):
 
         # x is N * D, where D is the feature dimension
-        adj = self.ac1(x)  # N * N
-        x = F.relu(self.gc1(x, adj))  # N * hidden_feat
-        #x = F.dropout(x, self.dropout, training=self.training)  # N * hidden_feat
+        # adj = self.ac1(x)  # N * N
+        # x = F.relu(self.gc1(x, adj))  # N * hidden_feat
+        # #x = F.dropout(x, self.dropout, training=self.training)  # N * hidden_feat
+        #
+        # adj = self.ac2(x)  # N * N
+        # x = self.gc2(x, adj)
 
-        adj = self.ac2(x)  # N * N
-        x = self.gc2(x, adj)
+        x = self.linear_1(x)
+        x = self.bn_1(x)
+        x = F.leaky_relu(x)
 
-        # x = self.linear_1(x)
-        #
-        # x = F.relu(x)
-        #
-        # x = self.linear_2(x)
-        # x = F.relu(x)
-        #
-        # x = self.linear_3(x)
-        #x = F.leaky_relu(x)
+        x = self.linear_2(x)
+        x = self.bn_2(x)
+        x = F.leaky_relu(x)
+
+        x = self.linear_3(x)
+
 
         # generate the class protocal with dimension C * D (nclass * dim)
         proto_list = []
@@ -170,7 +174,7 @@ class ProtoGCN(nn.Module):
             proto_list.append(class_repr.view(1, -1))
         x_proto = torch.cat(proto_list, dim=0)
         #print(x_proto)
-        dists = euclidean_dist(x, x_proto) * 1e7
+        dists = euclidean_dist(x, x_proto)
         #log_dists = F.log_softmax(-dists * 1e7, dim=1)
         return -dists
 

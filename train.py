@@ -23,7 +23,7 @@ parser.add_argument('--epochs', type=int, default=200,
                     help='Number of epochs to train.')
 parser.add_argument('--lr', type=float, default=0.01,
                     help='Initial learning rate.')
-parser.add_argument('--weight_decay', type=float, default=5e1,
+parser.add_argument('--weight_decay', type=float, default=5e-1,
                     help='Weight decay (L2 loss on parameters).')
 parser.add_argument('--hidden', type=int, default=64,
                     help='Number of hidden units.')
@@ -104,6 +104,7 @@ def train(epoch):
 def test():
     model.eval()
     output = model(features, labels, idx_train)
+    print(output[idx_test])
     loss_test = F.cross_entropy(output[idx_test], torch.squeeze(labels[idx_test]))
     acc_test = accuracy(output[idx_test], labels[idx_test])
     print("Test set results:",

@@ -1,4 +1,4 @@
-from utils import load_ts_data, accuracy
+from utils import *
 from sklearn.svm import SVC
 import numpy as np
 
@@ -16,10 +16,11 @@ from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
 from sklearn.naive_bayes import GaussianNB
 from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
 
-adj, features, labels, idx_train, idx_val, idx_test = load_ts_data(tensor_format=False)
+#adj, features, labels, idx_train, idx_val, idx_test = load_ts_data(tensor_format=False)
+features, labels, idx_train, idx_val, idx_test, nclass = load_muse_data(dataset="ECG", tensor_format=False)
 
-feat_train, label_train = features[idx_train, :].toarray(), np.argmax(labels[idx_train, :], axis=1)
-feat_test, label_test = features[idx_test, :].toarray(), np.argmax(labels[idx_test, :], axis=1)
+feat_train, label_train = features[idx_train, :], labels[idx_train, :]
+feat_test, label_test = features[idx_test, :], labels[idx_test, :]
 
 
 # clf = MLPClassifier(solver='adam', alpha=1e-5,
