@@ -32,42 +32,61 @@ def load_mappings(filename):
     return a
 
 
+def load_bigraph_adj(filename, shape):
+    df = pd.read_csv(filename, header=None, delimiter=",")
+    a = np.array(df.as_matrix())
+    row = a[:, 0] - 1
+    col = a[:, 1] - 1
+    value = [1] * a.shape[0]
+    adj = sp.csr_matrix((value, (row, col)), shape=shape).toarray()
+    return adj
+
+
 # load the data generated from MUSE
 def load_bigraph(path="./data/muse/", dataset="ECG", tensor_format=True):
 
     path = path + dataset + "/"
     file_header = dataset.lower() + "_"
 
-    train_features = loadsparse(path + file_header + "train.csv")
-    test_features = loadsparse(path + file_header + "test.csv")
-    features = sp.vstack([train_features, test_features])
-    features = normalize(features)
+    # train_features = loadsparse(path + file_header + "train.csv")
+    # test_features = loadsparse(path + file_header + "test.csv")
+    # features = sp.vstack([train_features, test_features])
+    # features = normalize(features)
 
+    # load motif embedding
+    motif_features = loadsparse(path + file_header + "motif_embedding.csv")
+
+
+    # load labels
     train_labels = loaddata(path + file_header + "train_label.csv")
     test_labels = loaddata(path + file_header + "test_label.csv")
     labels = np.concatenate((train_labels, test_labels), axis=0)
 
     nclass = np.amax(labels) + 1
 
-
+    # load the bipartite graph
+    bigraph_adj = load_bigraph_adj(path + file_header + "ts2motif.csv",
+                                   shape=(labels.shape[0], motif_features.shape[0]))
 
     # total data size: 934
-    train_size = train_features.shape[0]
+    train_size = train_labels.shape[0]
     #train_size = 10
-    total_size = features.shape[0]
+    total_size = labels.shape[0]
     idx_train = range(train_size)
     idx_val = range(train_size, total_size)
     idx_test = range(train_size, total_size)
 
     if tensor_format:
-        features = torch.FloatTensor(np.array(features))
+        # features = torch.FloatTensor(np.array(features))
+        bigraph_adj = torch.FloatTensor(np.array(bigraph_adj))
+        motif_features = torch.FloatTensor(np.array(motif_features.todense()))
         labels = torch.LongTensor(labels)
 
         idx_train = torch.LongTensor(idx_train)
         idx_val = torch.LongTensor(idx_val)
         idx_test = torch.LongTensor(idx_test)
 
-    return features, labels, idx_train, idx_val, idx_test, nclass
+    return bigraph_adj, motif_features, labels, idx_train, idx_val, idx_test, nclass
 
 
 # load the MUSE motif data

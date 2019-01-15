@@ -10,7 +10,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 from utils import *
-from models import FGCN, ProtoGCN, MotifGCN
+from models import FGCN, ProtoGCN, BiGCN, MotifGCN
 
 # Training settings
 parser = argparse.ArgumentParser()
@@ -19,7 +19,7 @@ parser.add_argument('--no-cuda', action='store_true', default=False,
 parser.add_argument('--fastmode', action='store_true', default=False,
                     help='Validate during training pass.')
 parser.add_argument('--seed', type=int, default=42, help='Random seed.')
-parser.add_argument('--epochs', type=int, default=200,
+parser.add_argument('--epochs', type=int, default=1000,
                     help='Number of epochs to train.')
 parser.add_argument('--lr', type=float, default=0.01,
                     help='Initial learning rate.')
@@ -43,32 +43,46 @@ if args.cuda:
 # Load data
 # adj, features, labels, idx_train, idx_val, idx_test = load_data()
 print("Loading dataset", args.dataset, "...")
-features, labels, idx_train, idx_val, idx_test, nclass = load_muse_data(dataset=args.dataset)
-
 # Model and optimizer
-model_type = "ProtoGCN"  # Options: FGCN, ProtoGCN, MotifGCN
-
+model_type = "BiGCN"  # Options: FGCN, ProtoGCN, BiGCN, MotifGCN
 if model_type == "FGCN":
+    features, labels, idx_train, idx_val, idx_test, nclass = load_muse_data(dataset=args.dataset)
     model = FGCN(nfeat=features.shape[1],
                  nhid=args.hidden,
                  nclass=nclass,
                  dropout=args.dropout)
+    input = features
 elif model_type == "ProtoGCN":
+    features, labels, idx_train, idx_val, idx_test, nclass = load_muse_data(dataset=args.dataset)
     model = ProtoGCN(nfeat=features.shape[1],
                      nhid=args.hidden,
                      nclass=nclass,
                      dropout=args.dropout)
+    input = (features, labels, idx_train)
+elif model_type == "BiGCN":
+    adj, motif_features, labels, idx_train, idx_val, idx_test, nclass = load_bigraph(dataset=args.dataset)
+    model = BiGCN(adj=adj,
+                  ts_out=100,
+                  motif_in=motif_features.shape[1],
+                  motif_out=50,
+                  nclass=nclass,
+                  dropout=args.dropout)
+    input = (motif_features, labels, idx_train)
 elif model_type == "MotifGCN":
-    model = MotifGCN(ts_feat=200,
-                     motif_feat=100,
-                     nhid=args.hidden,
+    adj, motif_features, labels, idx_train, idx_val, idx_test, nclass = load_bigraph(dataset=args.dataset)
+    model = MotifGCN(adj=adj,
+                     ts_out=100,
+                     motif_in=motif_features.shape[1],
+                     motif_out=50,
                      nclass=nclass,
                      dropout=args.dropout)
+    input = (motif_features, labels, idx_train)
 
-
+# init the optimizer
 optimizer = optim.Adam(model.parameters(),
                        lr=args.lr, weight_decay=args.weight_decay)
 
+# cuda
 if args.cuda:
     model.cuda()
     features = features.cuda()
@@ -78,13 +92,14 @@ if args.cuda:
     idx_test = idx_test.cuda()
 
 
+# training function
 def train(epoch):
     t = time.time()
     model.train()
     optimizer.zero_grad()
-    output = model(features, labels, idx_train)
+    output = model(input)
     # print(features[idx_train])
-    #print(output[idx_train])
+    print(output[idx_train])
 
     loss_train = F.cross_entropy(output[idx_train], torch.squeeze(labels[idx_train]))
     acc_train = accuracy(output[idx_train], labels[idx_train])
@@ -109,18 +124,10 @@ def train(epoch):
           'time: {:.4f}s'.format(time.time() - t))
 
 
+# test function
 def test():
     model.eval()
-    output = model(features, labels, idx_train)
-    print(output[idx_val])
-    loss_test = F.cross_entropy(output[idx_val], torch.squeeze(labels[idx_val]))
-    acc_test = accuracy(output[idx_val], labels[idx_val])
-    print("Test set results:",
-          "loss= {:.4f}".format(loss_test.item()),
-          "accuracy= {:.4f}".format(acc_test.item()))
-
-    model.eval()
-    output = model(features, labels, idx_train)
+    output = model(input)
     print(output[idx_test])
     loss_test = F.cross_entropy(output[idx_test], torch.squeeze(labels[idx_test]))
     acc_test = accuracy(output[idx_test], labels[idx_test])

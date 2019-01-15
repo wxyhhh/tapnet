@@ -112,8 +112,8 @@ class FGCN(nn.Module):
         self.gc2 = GraphConvolution(nhid, nclass)
         self.dropout = dropout
 
-    def forward(self, x, dummy, dummy2):
-
+    def forward(self, input):
+        x = input[0]
         # x is N * D, where D is the feature dimension
         adj = self.ac1(x)  # N * N
         x = F.relu(self.gc1(x, adj))  # N * hidden_feat
@@ -146,8 +146,8 @@ class ProtoGCN(nn.Module):
         self.bn_1 = nn.BatchNorm1d(fc_layers[0])
         self.bn_2 = nn.BatchNorm1d(fc_layers[1])
 
-    def forward(self, x, labels, idx_train):
-
+    def forward(self, input):
+        x, labels, idx_train = input
         # x is N * D, where D is the feature dimension
         # adj = self.ac1(x)  # N * N
         # x = F.relu(self.gc1(x, adj))  # N * hidden_feat
@@ -180,23 +180,146 @@ class ProtoGCN(nn.Module):
         return -dists
 
 
-# # Motif based GCN Model for Semi-supervised time series classification
-class MotifGCN(nn.Module):
+# BiGCN Model for Semi-supervised time series classification
+class BiGCN(nn.Module):
 
-    def __init__(self, ts_feat, motif_feat, nhid, nclass, dropout):
-        super(MotifGCN, self).__init__()
+    def __init__(self, adj, ts_out, motif_in, motif_out, dropout, nclass):
+        super(BiGCN, self).__init__()
+        ts_hid, motif_hid = 400, 400
+        ts_hid2, motif_hid2 = 100, 100
 
-        # self.ac1 = AdjCompute(nfeat)
-        # self.ac2 = AdjCompute(nhid)
-        #self.adj_W1 = nn.Linear(self.cmnt_length * 4, 1, bias=True)
+        self.nclass = nclass
+        self.adj = adj
 
-        self.gc1 = BiGraphConv(ts_feat, motif_feat, nhid)
-        self.gc2 = BiGraphConv(ts_feat, motif_feat, nclass)
+
+        # self.gc1 = BiGraphConv(ts_hid, motif_in, motif_hid)
+        # self.gc2 = BiGraphConv(ts_out, motif_hid, motif_out)
+
+        self.gc1 = BiGraphConv(ts_hid, motif_in, motif_hid)
+        self.gc2 = BiGraphConv(ts_hid2, motif_hid, motif_hid2)
+        self.gc3 = BiGraphConv(2, motif_hid2, motif_out)
+
+        self.ts_bn = nn.BatchNorm1d(ts_hid)
+        self.ts_bn2 = nn.BatchNorm1d(ts_hid2)
+
+        self.motif_bn = nn.BatchNorm1d(motif_hid)
+        self.motif_bn2 = nn.BatchNorm1d(motif_hid2)
+
         self.dropout = dropout
 
-    def forward(self, motif, adj):
-
+    def forward(self, input):
+        motif, labels, idx_train = input
         # x is N * D, where D is the feature dimension
-        ts, motif = F.relu(self.gc1(motif, adj))  # N * hidden_feat
-        ts, motif = self.gc2(motif, adj)
-        return ts, ts
+        ts, motif = self.gc1(motif, self.adj)
+        ts, motif = self.ts_bn(ts), self.motif_bn(motif)
+        ts, motif = F.leaky_relu(ts), F.leaky_relu(motif)
+
+        ts, motif = self.gc2(motif, self.adj)
+        ts, motif = self.ts_bn2(ts), self.motif_bn2(motif)
+        ts, motif = F.leaky_relu(ts), F.leaky_relu(motif)
+
+        ts, motif = self.gc3(motif, self.adj)
+
+
+        # ts, motif = self.gc2(ts, self.adj.transpose(0, 1))
+
+
+        # generate the class protocal with dimension C * D (nclass * dim)
+        # proto_list = []
+        # for i in range(self.nclass):
+        #     idx = (labels[idx_train].squeeze(1) == i).nonzero().squeeze(1)
+        #     class_repr = ts[idx_train][idx].mean(0)
+        #     proto_list.append(class_repr.view(1, -1))
+        # ts_proto = torch.cat(proto_list, dim=0)
+        # # print(x_proto)
+        # dists = euclidean_dist(ts, ts_proto)
+        # # log_dists = F.log_softmax(-dists * 1e7, dim=1)
+        # return -dists
+
+        return ts
+
+
+    def __init__(self, nfeat, nhid, nclass, dropout):
+        super(FGCN, self).__init__()
+
+        self.layer_num = 2
+        self.ac1 = AdjCompute(nfeat)
+        self.ac2 = AdjCompute(nhid)
+        #self.adj_W1 = nn.Linear(self.cmnt_length * 4, 1, bias=True)
+
+        self.gc1 = GraphConvolution(nfeat, nhid)
+        self.gc2 = GraphConvolution(nhid, nclass)
+        self.dropout = dropout
+
+    def forward(self, input):
+        x = input[0]
+        # x is N * D, where D is the feature dimension
+        adj = self.ac1(x)  # N * N
+        x = F.relu(self.gc1(x, adj))  # N * hidden_feat
+        #x = F.dropout(x, self.dropout, training=self.training)  # N * hidden_feat
+
+        adj = self.ac2(x)  # N * N
+        x = self.gc2(x, adj)
+        return x
+
+# Motif based GCN Model for Semi-supervised time series classification
+class MotifGCN(nn.Module):
+
+    def __init__(self, adj, ts_out, motif_in, motif_out, dropout, nclass):
+        super(MotifGCN, self).__init__()
+        ts_hid, motif_hid = 400, 400
+        ts_hid2, motif_hid2 = 100, 100
+
+        self.nclass = nclass
+        self.adj = adj
+
+        self.ac1 = AdjCompute(motif_in)
+        self.ac2 = AdjCompute(motif_hid)
+        # self.adj_W1 = nn.Linear(self.cmnt_length * 4, 1, bias=True)
+
+        self.gc1 = GraphConvolution(motif_in, motif_hid)
+        self.gc2 = GraphConvolution(motif_hid, motif_out)
+
+        # self.gc1 = BiGraphConv(ts_hid, motif_in, motif_hid)
+        # self.gc2 = BiGraphConv(ts_out, motif_hid, motif_out)
+
+        self.gc1 = BiGraphConv(ts_hid, motif_in, motif_hid)
+        self.gc2 = BiGraphConv(ts_hid2, motif_hid, motif_hid2)
+        self.gc3 = BiGraphConv(2, motif_hid2, motif_out)
+
+        self.ts_bn = nn.BatchNorm1d(ts_hid)
+        self.ts_bn2 = nn.BatchNorm1d(ts_hid2)
+
+        self.motif_bn = nn.BatchNorm1d(motif_hid)
+        self.motif_bn2 = nn.BatchNorm1d(motif_hid2)
+
+        self.dropout = dropoutd
+
+    def forward(self, input):
+        motif, labels, idx_train = input
+
+        # generate motif embedding by GCN
+        adj = self.ac1(motif)  # N * N
+        motif = F.relu(self.gc1(motif, adj))  # N * hidden_feat
+        # x = F.dropout(x, self.dropout, training=self.training)  # N * hidden_feat
+
+        adj = self.ac2(motif)  # N * N
+        motif = self.gc2(motif, adj)
+
+        # generate ts embedding by attention model
+        ts = Att(motif)
+
+        # use prototypical network
+
+
+        # generate the class protocal with dimension C * D (nclass * dim)
+        proto_list = []
+        for i in range(self.nclass):
+            idx = (labels[idx_train].squeeze(1) == i).nonzero().squeeze(1)
+            class_repr = ts[idx_train][idx].mean(0)
+            proto_list.append(class_repr.view(1, -1))
+        ts_proto = torch.cat(proto_list, dim=0)
+        # print(x_proto)
+        dists = euclidean_dist(ts, ts_proto)
+        # log_dists = F.log_softmax(-dists * 1e7, dim=1)
+        return -dists
