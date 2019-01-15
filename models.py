@@ -130,13 +130,12 @@ class ProtoGCN(nn.Module):
         super(ProtoGCN, self).__init__()
 
         self.nclass = nclass
-        self.layer_num = 2
-        self.ac1 = AdjCompute(nfeat)
-        self.ac2 = AdjCompute(nhid)
-        #self.adj_W1 = nn.Linear(self.cmnt_length * 4, 1, bias=True)
-
-        self.gc1 = GraphConvolution(nfeat, nhid)
-        self.gc2 = GraphConvolution(nhid, 32)
+        # self.ac1 = AdjCompute(nfeat)
+        # self.ac2 = AdjCompute(nhid)
+        # #self.adj_W1 = nn.Linear(self.cmnt_length * 4, 1, bias=True)
+        #
+        # self.gc1 = GraphConvolution(nfeat, nhid)
+        # self.gc2 = GraphConvolution(nhid, 32)
         self.dropout = dropout
 
         fc_layers = [2000, 1000, 300]
@@ -156,6 +155,7 @@ class ProtoGCN(nn.Module):
         # adj = self.ac2(x)  # N * N
         # x = self.gc2(x, adj)
 
+        # linear
         x = self.linear_1(x)
         x = self.bn_1(x)
         x = F.leaky_relu(x)
@@ -165,7 +165,6 @@ class ProtoGCN(nn.Module):
         x = F.leaky_relu(x)
 
         x = self.linear_3(x)
-
 
         # generate the class protocal with dimension C * D (nclass * dim)
         proto_list = []
@@ -189,8 +188,7 @@ class BiGCN(nn.Module):
         ts_hid2, motif_hid2 = 100, 100
 
         self.nclass = nclass
-        self.adj = adj
-
+        self.adj = adj  # N * M, where N is time series size and M is motif size
 
         # self.gc1 = BiGraphConv(ts_hid, motif_in, motif_hid)
         # self.gc2 = BiGraphConv(ts_out, motif_hid, motif_out)
@@ -209,6 +207,7 @@ class BiGCN(nn.Module):
 
     def forward(self, input):
         motif, labels, idx_train = input
+
         # x is N * D, where D is the feature dimension
         ts, motif = self.gc1(motif, self.adj)
         ts, motif = self.ts_bn(ts), self.motif_bn(motif)

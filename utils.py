@@ -37,6 +37,7 @@ def load_bigraph_adj(filename, shape):
     a = np.array(df.as_matrix())
     row = a[:, 0] - 1
     col = a[:, 1] - 1
+    # value = a[:, 2]
     value = [1] * a.shape[0]
     adj = sp.csr_matrix((value, (row, col)), shape=shape).toarray()
     return adj

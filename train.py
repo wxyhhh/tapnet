@@ -44,7 +44,7 @@ if args.cuda:
 # adj, features, labels, idx_train, idx_val, idx_test = load_data()
 print("Loading dataset", args.dataset, "...")
 # Model and optimizer
-model_type = "BiGCN"  # Options: FGCN, ProtoGCN, BiGCN, MotifGCN
+model_type = "ProtoGCN"  # Options: FGCN, ProtoGCN, BiGCN, MotifGCN
 if model_type == "FGCN":
     features, labels, idx_train, idx_val, idx_test, nclass = load_muse_data(dataset=args.dataset)
     model = FGCN(nfeat=features.shape[1],
@@ -99,7 +99,7 @@ def train(epoch):
     optimizer.zero_grad()
     output = model(input)
     # print(features[idx_train])
-    print(output[idx_train])
+    # print(output[idx_train])
 
     loss_train = F.cross_entropy(output[idx_train], torch.squeeze(labels[idx_train]))
     acc_train = accuracy(output[idx_train], labels[idx_train])
