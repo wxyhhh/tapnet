@@ -182,7 +182,7 @@ class ProtoGCN(nn.Module):
 # BiGCN Model for Semi-supervised time series classification
 class BiGCN(nn.Module):
 
-    def __init__(self, adj, ts_out, motif_in, motif_out, dropout, nclass):
+    def __init__(self, adj, ts_out, motif_in, motif_out, nclass, dropout):
         super(BiGCN, self).__init__()
         ts_hid, motif_hid = 400, 400
         ts_hid2, motif_hid2 = 100, 100
@@ -237,29 +237,6 @@ class BiGCN(nn.Module):
 
         return ts
 
-
-    def __init__(self, nfeat, nhid, nclass, dropout):
-        super(FGCN, self).__init__()
-
-        self.layer_num = 2
-        self.ac1 = AdjCompute(nfeat)
-        self.ac2 = AdjCompute(nhid)
-        #self.adj_W1 = nn.Linear(self.cmnt_length * 4, 1, bias=True)
-
-        self.gc1 = GraphConvolution(nfeat, nhid)
-        self.gc2 = GraphConvolution(nhid, nclass)
-        self.dropout = dropout
-
-    def forward(self, input):
-        x = input[0]
-        # x is N * D, where D is the feature dimension
-        adj = self.ac1(x)  # N * N
-        x = F.relu(self.gc1(x, adj))  # N * hidden_feat
-        #x = F.dropout(x, self.dropout, training=self.training)  # N * hidden_feat
-
-        adj = self.ac2(x)  # N * N
-        x = self.gc2(x, adj)
-        return x
 
 # Motif based GCN Model for Semi-supervised time series classification
 class MotifGCN(nn.Module):

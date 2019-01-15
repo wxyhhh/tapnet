@@ -37,8 +37,8 @@ def load_bigraph_adj(filename, shape):
     a = np.array(df.as_matrix())
     row = a[:, 0] - 1
     col = a[:, 1] - 1
-    # value = a[:, 2]
-    value = [1] * a.shape[0]
+    value = a[:, 2]
+    # value = [1] * a.shape[0]
     adj = sp.csr_matrix((value, (row, col)), shape=shape).toarray()
     return adj
 
@@ -66,7 +66,7 @@ def load_bigraph(path="./data/muse/", dataset="ECG", tensor_format=True):
     nclass = np.amax(labels) + 1
 
     # load the bipartite graph
-    bigraph_adj = load_bigraph_adj(path + file_header + "ts2motif.csv",
+    bigraph_adj = load_bigraph_adj(path + file_header + "mapping_table.csv",
                                    shape=(labels.shape[0], motif_features.shape[0]))
 
     # total data size: 934

@@ -19,7 +19,7 @@ parser.add_argument('--no-cuda', action='store_true', default=False,
 parser.add_argument('--fastmode', action='store_true', default=False,
                     help='Validate during training pass.')
 parser.add_argument('--seed', type=int, default=42, help='Random seed.')
-parser.add_argument('--epochs', type=int, default=1000,
+parser.add_argument('--epochs', type=int, default=500,
                     help='Number of epochs to train.')
 parser.add_argument('--lr', type=float, default=0.01,
                     help='Initial learning rate.')
@@ -44,13 +44,16 @@ if args.cuda:
 # adj, features, labels, idx_train, idx_val, idx_test = load_data()
 print("Loading dataset", args.dataset, "...")
 # Model and optimizer
-model_type = "ProtoGCN"  # Options: FGCN, ProtoGCN, BiGCN, MotifGCN
+model_type = "BiGCN"  # Options: FGCN, ProtoGCN, BiGCN, MotifGCN
 if model_type == "FGCN":
     features, labels, idx_train, idx_val, idx_test, nclass = load_muse_data(dataset=args.dataset)
     model = FGCN(nfeat=features.shape[1],
                  nhid=args.hidden,
                  nclass=nclass,
                  dropout=args.dropout)
+    if args.cuda:
+        model.cuda()
+        features = features.cuda()
     input = features
 elif model_type == "ProtoGCN":
     features, labels, idx_train, idx_val, idx_test, nclass = load_muse_data(dataset=args.dataset)
@@ -58,6 +61,10 @@ elif model_type == "ProtoGCN":
                      nhid=args.hidden,
                      nclass=nclass,
                      dropout=args.dropout)
+    # cuda
+    if args.cuda:
+        model.cuda()
+        features, labels, idx_train = features.cuda(), labels.cuda(), idx_train.cuda()
     input = (features, labels, idx_train)
 elif model_type == "BiGCN":
     adj, motif_features, labels, idx_train, idx_val, idx_test, nclass = load_bigraph(dataset=args.dataset)
@@ -67,6 +74,9 @@ elif model_type == "BiGCN":
                   motif_out=50,
                   nclass=nclass,
                   dropout=args.dropout)
+    if args.cuda:
+        model.cuda()
+        motif_features, labels, idx_train = motif_features.cuda(), labels.cuda(), idx_train.cuda()
     input = (motif_features, labels, idx_train)
 elif model_type == "MotifGCN":
     adj, motif_features, labels, idx_train, idx_val, idx_test, nclass = load_bigraph(dataset=args.dataset)
@@ -76,7 +86,11 @@ elif model_type == "MotifGCN":
                      motif_out=50,
                      nclass=nclass,
                      dropout=args.dropout)
+    if args.cuda:
+        model.cuda()
+        motif_features, labels, idx_train = motif_features.cuda(), labels.cuda(), idx_train.cuda()
     input = (motif_features, labels, idx_train)
+
 
 # init the optimizer
 optimizer = optim.Adam(model.parameters(),
