@@ -14,26 +14,34 @@ def encode_onehot(labels):
                              dtype=np.int32)
     return labels_onehot
 
+def loadsparse(filename):
+    df = pd.read_csv(filename, header=None, delimiter=",")
+    a = np.array(df.as_matrix())
+    a = sp.csr_matrix(a)
+    return a
+
+def loaddata(filename):
+    df = pd.read_csv(filename, header=None, delimiter=",")
+    a = np.array(df.as_matrix())
+    return a
+
+def load_mappings(filename):
+    # TODO:
+    df = pd.read_csv(filename, header=None, delimiter=",")
+    a = np.array(df.as_matrix())
+    return a
+
+
 # load the data generated from MUSE
-def load_muse_data(path="./data/muse/", dataset="ECG", tensor_format=True):
-
-    def loadsparse(filename):
-        df = pd.read_csv(filename, header=None, delimiter=",")
-        a = np.array(df.as_matrix())
-        a = sp.csr_matrix(a)
-        return a
-
-    def loaddata(filename):
-        df = pd.read_csv(filename, header=None, delimiter=",")
-        a = np.array(df.as_matrix())
-        return a
+def load_bigraph(path="./data/muse/", dataset="ECG", tensor_format=True):
 
     path = path + dataset + "/"
     file_header = dataset.lower() + "_"
 
-    train_features = loadsparse(path + file_header + "train.csv")[:500]
+    train_features = loadsparse(path + file_header + "train.csv")
     test_features = loadsparse(path + file_header + "test.csv")
     features = sp.vstack([train_features, test_features])
+    features = normalize(features)
 
     train_labels = loaddata(path + file_header + "train_label.csv")
     test_labels = loaddata(path + file_header + "test_label.csv")
@@ -41,7 +49,7 @@ def load_muse_data(path="./data/muse/", dataset="ECG", tensor_format=True):
 
     nclass = np.amax(labels) + 1
 
-    features = normalize(features)
+
 
     # total data size: 934
     train_size = train_features.shape[0]
@@ -61,18 +69,84 @@ def load_muse_data(path="./data/muse/", dataset="ECG", tensor_format=True):
 
     return features, labels, idx_train, idx_val, idx_test, nclass
 
+
+# load the MUSE motif data
+def load_muse_motif(path="./data/muse_motif/", dataset="ECG", tensor_format=True):
+    path = path + dataset + "/"
+    file_header = dataset.lower() + "_"
+
+    # motif embedding
+    motif_embed = loadsparse(path + file_header + "motif_embed.csv")
+    motif_embed = normalize(motif_embed)
+
+    # labels
+    train_labels = loaddata(path + file_header + "train_label.csv")
+    test_labels = loaddata(path + file_header + "test_label.csv")
+    labels = np.concatenate((train_labels, test_labels), axis=0)
+
+    # number of class
+    nclass = np.amax(labels) + 1
+
+    # ts2motif dictionary
+    ts2motif = load_mappings(path + file_header + "ecg_ts2motif.csv")
+
+    # total data size: 934
+    train_size = train_labels.shape[0]
+    total_size = labels.shape[0]
+
+    idx_train = range(train_size)
+    idx_val = range(train_size, total_size)
+    idx_test = range(train_size, total_size)
+
+    if tensor_format:
+        motif_embed = torch.FloatTensor(np.array(motif_embed))
+        labels = torch.LongTensor(labels)
+
+        idx_train = torch.LongTensor(idx_train)
+        idx_val = torch.LongTensor(idx_val)
+        idx_test = torch.LongTensor(idx_test)
+
+    return motif_embed, labels, ts2motif, idx_train, idx_val, idx_test, nclass
+
+# load the data generated from MUSE
+def load_muse_data(path="./data/muse/", dataset="ECG", tensor_format=True):
+
+    path = path + dataset + "/"
+    file_header = dataset.lower() + "_"
+
+    train_features = loadsparse(path + file_header + "train.csv")
+    test_features = loadsparse(path + file_header + "test.csv")
+    features = sp.vstack([train_features, test_features])
+    features = normalize(features)
+
+    train_labels = loaddata(path + file_header + "train_label.csv")
+    test_labels = loaddata(path + file_header + "test_label.csv")
+    labels = np.concatenate((train_labels, test_labels), axis=0)
+
+    nclass = np.amax(labels) + 1
+
+
+
+    # total data size: 934
+    train_size = train_features.shape[0]
+    #train_size = 10
+    total_size = features.shape[0]
+    idx_train = range(train_size)
+    idx_val = range(train_size, total_size)
+    idx_test = range(train_size, total_size)
+
+    if tensor_format:
+        features = torch.FloatTensor(np.array(features))
+        labels = torch.LongTensor(labels)
+
+        idx_train = torch.LongTensor(idx_train)
+        idx_val = torch.LongTensor(idx_val)
+        idx_test = torch.LongTensor(idx_test)
+
+    return features, labels, idx_train, idx_val, idx_test, nclass
+
+
 def load_ts_data(path="./data/time_series/", tensor_format=True):
-
-    def loadsparse(filename):
-        df = pd.read_csv(filename, header=None, delimiter=",")
-        a = np.array(df.as_matrix())
-        a = sp.csr_matrix(a)
-        return a
-
-    def loaddata(filename):
-        df = pd.read_csv(filename, header=None, delimiter=",")
-        a = np.array(df.as_matrix())
-        return a
 
     adj = loadsparse(path + "graph.csv")
     # features = loadsparse(path + "feature.csv")

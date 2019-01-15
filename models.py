@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from layers import GraphConvolution
+from layers import GraphConvolution, BiGraphConv
 from utils import euclidean_dist, normalize
 
 class AdjCompute(nn.Module):
@@ -96,6 +96,7 @@ class AdjCompute(nn.Module):
 
         return adj
 
+
 # baseline FGCN
 class FGCN(nn.Module):
 
@@ -111,7 +112,7 @@ class FGCN(nn.Module):
         self.gc2 = GraphConvolution(nhid, nclass)
         self.dropout = dropout
 
-    def forward(self, x):
+    def forward(self, x, dummy, dummy2):
 
         # x is N * D, where D is the feature dimension
         adj = self.ac1(x)  # N * N
@@ -179,28 +180,23 @@ class ProtoGCN(nn.Module):
         return -dists
 
 
-# Motif based GCN Model for Semi-supervised time series classification
+# # Motif based GCN Model for Semi-supervised time series classification
 class MotifGCN(nn.Module):
-    def __init__(self, nfeat, nhid, nclass, dropout):
+
+    def __init__(self, ts_feat, motif_feat, nhid, nclass, dropout):
         super(MotifGCN, self).__init__()
 
-        self.motif_layer_num = 2
-        self.gc1 = GraphConvolution(nfeat, nhid)
-        self.gc2 = GraphConvolution(nhid, nclass)
+        # self.ac1 = AdjCompute(nfeat)
+        # self.ac2 = AdjCompute(nhid)
+        #self.adj_W1 = nn.Linear(self.cmnt_length * 4, 1, bias=True)
+
+        self.gc1 = BiGraphConv(ts_feat, motif_feat, nhid)
+        self.gc2 = BiGraphConv(ts_feat, motif_feat, nclass)
         self.dropout = dropout
 
+    def forward(self, motif, adj):
 
-    def forward(self, x, adj):
-
-        # two layers GCNs for motif
-        for _ in range(self.motif_layer_num):
-            adj_motif = 1
-            embed_motif = 2
-
-
-
-        #
-        x = F.relu(self.gc1(x, adj))
-        x = F.dropout(x, self.dropout, training=self.training)
-        x = self.gc2(x, adj)
-        return F.log_softmax(x, dim=1)
+        # x is N * D, where D is the feature dimension
+        ts, motif = F.relu(self.gc1(motif, adj))  # N * hidden_feat
+        ts, motif = self.gc2(motif, adj)
+        return ts, ts

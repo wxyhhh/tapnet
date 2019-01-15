@@ -40,3 +40,47 @@ class GraphConvolution(Module):
         return self.__class__.__name__ + ' (' \
                + str(self.in_features) + ' -> ' \
                + str(self.out_features) + ')'
+
+class BiGraphConv(Module):
+    """
+    Bipartite GCN layer with two different node types
+    """
+
+    def __init__(self, a_features, b_features, bias=True):
+        super(BiGraphConv, self).__init__()
+        self.a_features = a_features
+        self.b_features = b_features
+
+        self.a_weight = Parameter(torch.FloatTensor(b_features, a_features))
+        self.b_weight = Parameter(torch.FloatTensor(a_features, b_features))
+        if bias:
+            self.a_bias = Parameter(torch.FloatTensor(a_features))
+            self.b_bias = Parameter(torch.FloatTensor(b_features))
+        else:
+            self.register_parameter('a_bias', None)
+            self.register_parameter('b_bias', None)
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        a_stdv = 1. / math.sqrt(self.a_weight.size(1))
+        self.a_weight.data.uniform_(-a_stdv, a_stdv)
+        if self.a_bias is not None:
+            self.a_bias.data.uniform_(-a_stdv, a_stdv)
+
+        b_stdv = 1. / math.sqrt(self.b_weight.size(1))
+        self.b_weight.data.uniform_(-b_stdv, b_stdv)
+        if self.b_bias is not None:
+            self.b_bias.data.uniform_(-b_stdv, b_stdv)
+
+    def forward(self, b_input, adj):
+        a_support = torch.mm(b_input, self.a_weight)
+        a_output = torch.spmm(adj, a_support)
+        if self.a_bias is not None:
+            return a_output + self.a_bias
+
+        b_support = torch.mm(a_output, self.b_weight)
+        b_output = torch.spmm(adj.transpose(), b_support)
+        if self.b_bias is not None:
+            return b_output + self.b_bias
+
+        return a_output, b_output

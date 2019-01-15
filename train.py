@@ -10,7 +10,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 from utils import *
-from models import FGCN, ProtoGCN
+from models import FGCN, ProtoGCN, MotifGCN
 
 # Training settings
 parser = argparse.ArgumentParser()
@@ -46,14 +46,25 @@ print("Loading dataset", args.dataset, "...")
 features, labels, idx_train, idx_val, idx_test, nclass = load_muse_data(dataset=args.dataset)
 
 # Model and optimizer
-# model = FGCN(nfeat=features.shape[1],
-#              nhid=args.hidden,
-#              nclass=nclass,
-#              dropout=args.dropout)
-model = ProtoGCN(nfeat=features.shape[1],
+model_type = "ProtoGCN"  # Options: FGCN, ProtoGCN, MotifGCN
+
+if model_type == "FGCN":
+    model = FGCN(nfeat=features.shape[1],
                  nhid=args.hidden,
                  nclass=nclass,
                  dropout=args.dropout)
+elif model_type == "ProtoGCN":
+    model = ProtoGCN(nfeat=features.shape[1],
+                     nhid=args.hidden,
+                     nclass=nclass,
+                     dropout=args.dropout)
+elif model_type == "MotifGCN":
+    model = MotifGCN(ts_feat=200,
+                     motif_feat=100,
+                     nhid=args.hidden,
+                     nclass=nclass,
+                     dropout=args.dropout)
+
 
 optimizer = optim.Adam(model.parameters(),
                        lr=args.lr, weight_decay=args.weight_decay)
@@ -73,11 +84,7 @@ def train(epoch):
     optimizer.zero_grad()
     output = model(features, labels, idx_train)
     # print(features[idx_train])
-    print(output[idx_train])
-
-    # input = torch.randn(3, 5, requires_grad=True)
-    # target = torch.empty(3, dtype=torch.long).random_(5)
-    # output = F.cross_entropy(input, target)
+    #print(output[idx_train])
 
     loss_train = F.cross_entropy(output[idx_train], torch.squeeze(labels[idx_train]))
     acc_train = accuracy(output[idx_train], labels[idx_train])
@@ -89,7 +96,8 @@ def train(epoch):
     #     # deactivates dropout during validation run.
     #     model.eval()
     #     output = model(features)
-        
+
+    model.eval()
     loss_val = F.cross_entropy(output[idx_val], torch.squeeze(labels[idx_val]))
     acc_val = accuracy(output[idx_val], labels[idx_val])
     #print(output[idx_val])
@@ -104,13 +112,21 @@ def train(epoch):
 def test():
     model.eval()
     output = model(features, labels, idx_train)
+    print(output[idx_val])
+    loss_test = F.cross_entropy(output[idx_val], torch.squeeze(labels[idx_val]))
+    acc_test = accuracy(output[idx_val], labels[idx_val])
+    print("Test set results:",
+          "loss= {:.4f}".format(loss_test.item()),
+          "accuracy= {:.4f}".format(acc_test.item()))
+
+    model.eval()
+    output = model(features, labels, idx_train)
     print(output[idx_test])
     loss_test = F.cross_entropy(output[idx_test], torch.squeeze(labels[idx_test]))
     acc_test = accuracy(output[idx_test], labels[idx_test])
     print("Test set results:",
           "loss= {:.4f}".format(loss_test.item()),
           "accuracy= {:.4f}".format(acc_test.item()))
-
 
 # Train model
 t_total = time.time()
