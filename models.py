@@ -126,7 +126,7 @@ class FGCN(nn.Module):
 # baseline FGCN
 class ProtoGCN(nn.Module):
 
-    def __init__(self, nfeat, nhid, nclass, dropout):
+    def __init__(self, nfeat, nhid, nclass, dropout, use_att=True):
         super(ProtoGCN, self).__init__()
 
         self.nclass = nclass
@@ -138,6 +138,7 @@ class ProtoGCN(nn.Module):
         # self.gc2 = GraphConvolution(nhid, 32)
         self.dropout = dropout
 
+        # Representation mapping function
         fc_layers = [2000, 1000, 300]
         self.linear_1 = nn.Linear(nfeat, fc_layers[0])
         self.linear_2 = nn.Linear(fc_layers[0], fc_layers[1])
@@ -145,9 +146,23 @@ class ProtoGCN(nn.Module):
         self.bn_1 = nn.BatchNorm1d(fc_layers[0])
         self.bn_2 = nn.BatchNorm1d(fc_layers[1])
 
+        # Attention
+        self.use_att = use_att
+        if self.use_att:
+            D = 128
+            self.attention = nn.Sequential(
+                nn.Linear(fc_layers[-1], D),
+                nn.Tanh(),
+                nn.Linear(D, 1)
+            )
+            # self.att_w = nn.Linear(D, 1)
+            # self.att_v = nn.Linear(D, fc_layers[-1])
+
+
     def forward(self, input):
-        x, labels, idx_train = input
-        # x is N * D, where D is the feature dimension
+        x, labels, idx_train = input  # x is N * L, where L is the time-series feature dimension
+
+        # GCN based representation function
         # adj = self.ac1(x)  # N * N
         # x = F.relu(self.gc1(x, adj))  # N * hidden_feat
         # #x = F.dropout(x, self.dropout, training=self.training)  # N * hidden_feat
@@ -170,7 +185,14 @@ class ProtoGCN(nn.Module):
         proto_list = []
         for i in range(self.nclass):
             idx = (labels[idx_train].squeeze(1) == i).nonzero().squeeze(1)
-            class_repr = x[idx_train][idx].mean(0)
+            if self.use_att:
+                A = self.attention(x[idx_train][idx])  # N_k * 1
+                A = torch.transpose(A, 1, 0)  # 1 * N_k
+                A = F.softmax(A, dim=1)  # softmax over N_k
+                class_repr = torch.mm(A, x[idx_train][idx]) # 1 * L
+                class_repr = torch.transpose(class_repr, 1, 0)  # L * 1
+            else:  # if do not use attention, simply use the mean of training samples with the same labels.
+                class_repr = x[idx_train][idx].mean(0)  # L * 1
             proto_list.append(class_repr.view(1, -1))
         x_proto = torch.cat(proto_list, dim=0)
         #print(x_proto)

@@ -19,10 +19,10 @@ parser.add_argument('--no-cuda', action='store_true', default=False,
 parser.add_argument('--fastmode', action='store_true', default=False,
                     help='Validate during training pass.')
 parser.add_argument('--seed', type=int, default=42, help='Random seed.')
-parser.add_argument('--epochs', type=int, default=5000,
+parser.add_argument('--epochs', type=int, default=30,
                     help='Number of epochs to train.')
 parser.add_argument('--lr', type=float, default=0.00005,
-                    help='Initial learning rate.')
+                    help='Initial learning rate. default:[0.00005]')
 parser.add_argument('--weight_decay', type=float, default=5e-3,
                     help='Weight decay (L2 loss on parameters).')
 parser.add_argument('--hidden', type=int, default=64,
@@ -44,7 +44,7 @@ if args.cuda:
 # adj, features, labels, idx_train, idx_val, idx_test = load_data()
 print("Loading dataset", args.dataset, "...")
 # Model and optimizer
-model_type = "BiGCN"  # Options: FGCN, ProtoGCN, BiGCN, MotifGCN
+model_type = "ProtoGCN"  # Options: FGCN, ProtoGCN, BiGCN, MotifGCN
 if model_type == "FGCN":
     features, labels, idx_train, idx_val, idx_test, nclass = load_muse_data(dataset=args.dataset)
     model = FGCN(nfeat=features.shape[1],
@@ -115,7 +115,7 @@ def train(epoch):
     #     model.eval()
     #     output = model(features)
 
-    model.eval()
+    #print(output[idx_val])
     loss_val = F.cross_entropy(output[idx_val], torch.squeeze(labels[idx_val]))
     acc_val = accuracy(output[idx_val], labels[idx_val])
     # print(output[idx_val])
@@ -129,9 +129,8 @@ def train(epoch):
 
 # test function
 def test():
-    model.eval()
     output = model(input)
-    print(output[idx_test])
+    #print(output[idx_test])
     loss_test = F.cross_entropy(output[idx_test], torch.squeeze(labels[idx_test]))
     acc_test = accuracy(output[idx_test], labels[idx_test])
     print("Test set results:",
