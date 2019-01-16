@@ -25,12 +25,6 @@ def loaddata(filename):
     a = np.array(df.as_matrix())
     return a
 
-def load_mappings(filename):
-    # TODO:
-    df = pd.read_csv(filename, header=None, delimiter=",")
-    a = np.array(df.as_matrix())
-    return a
-
 
 def load_bigraph_adj(filename, shape):
     df = pd.read_csv(filename, header=None, delimiter=",")
@@ -89,44 +83,6 @@ def load_bigraph(path="./data/muse/", dataset="ECG", tensor_format=True):
 
     return bigraph_adj, motif_features, labels, idx_train, idx_val, idx_test, nclass
 
-
-# load the MUSE motif data
-def load_muse_motif(path="./data/muse_motif/", dataset="ECG", tensor_format=True):
-    path = path + dataset + "/"
-    file_header = dataset.lower() + "_"
-
-    # motif embedding
-    motif_embed = loadsparse(path + file_header + "motif_embed.csv")
-    motif_embed = normalize(motif_embed)
-
-    # labels
-    train_labels = loaddata(path + file_header + "train_label.csv")
-    test_labels = loaddata(path + file_header + "test_label.csv")
-    labels = np.concatenate((train_labels, test_labels), axis=0)
-
-    # number of class
-    nclass = np.amax(labels) + 1
-
-    # ts2motif dictionary
-    ts2motif = load_mappings(path + file_header + "ecg_ts2motif.csv")
-
-    # total data size: 934
-    train_size = train_labels.shape[0]
-    total_size = labels.shape[0]
-
-    idx_train = range(train_size)
-    idx_val = range(train_size, total_size)
-    idx_test = range(train_size, total_size)
-
-    if tensor_format:
-        motif_embed = torch.FloatTensor(np.array(motif_embed))
-        labels = torch.LongTensor(labels)
-
-        idx_train = torch.LongTensor(idx_train)
-        idx_val = torch.LongTensor(idx_val)
-        idx_test = torch.LongTensor(idx_test)
-
-    return motif_embed, labels, ts2motif, idx_train, idx_val, idx_test, nclass
 
 # load the data generated from MUSE
 def load_muse_data(path="./data/muse/", dataset="ECG", tensor_format=True):

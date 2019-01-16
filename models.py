@@ -182,20 +182,19 @@ class ProtoGCN(nn.Module):
 # BiGCN Model for Semi-supervised time series classification
 class BiGCN(nn.Module):
 
-    def __init__(self, adj, ts_out, motif_in, motif_out, nclass, dropout):
+    def __init__(self, ts_out, motif_in, motif_out, nclass, dropout):
         super(BiGCN, self).__init__()
         ts_hid, motif_hid = 400, 400
         ts_hid2, motif_hid2 = 100, 100
 
         self.nclass = nclass
-        self.adj = adj  # N * M, where N is time series size and M is motif size
 
         # self.gc1 = BiGraphConv(ts_hid, motif_in, motif_hid)
         # self.gc2 = BiGraphConv(ts_out, motif_hid, motif_out)
 
         self.gc1 = BiGraphConv(ts_hid, motif_in, motif_hid)
         self.gc2 = BiGraphConv(ts_hid2, motif_hid, motif_hid2)
-        self.gc3 = BiGraphConv(2, motif_hid2, motif_out)
+        self.gc3 = BiGraphConv(ts_out, motif_hid2, motif_out)
 
         self.ts_bn = nn.BatchNorm1d(ts_hid)
         self.ts_bn2 = nn.BatchNorm1d(ts_hid2)
@@ -206,48 +205,48 @@ class BiGCN(nn.Module):
         self.dropout = dropout
 
     def forward(self, input):
-        motif, labels, idx_train = input
+        # adj is N * M adjacency matrix, where N is time series size and M is motif size
+        adj, motif, labels, idx_train = input
 
         # x is N * D, where D is the feature dimension
-        ts, motif = self.gc1(motif, self.adj)
+        ts, motif = self.gc1(motif, adj)
         ts, motif = self.ts_bn(ts), self.motif_bn(motif)
         ts, motif = F.leaky_relu(ts), F.leaky_relu(motif)
 
-        ts, motif = self.gc2(motif, self.adj)
+        ts, motif = self.gc2(motif, adj)
         ts, motif = self.ts_bn2(ts), self.motif_bn2(motif)
         ts, motif = F.leaky_relu(ts), F.leaky_relu(motif)
 
-        ts, motif = self.gc3(motif, self.adj)
+        ts, motif = self.gc3(motif, adj)
 
 
         # ts, motif = self.gc2(ts, self.adj.transpose(0, 1))
 
 
         # generate the class protocal with dimension C * D (nclass * dim)
-        # proto_list = []
-        # for i in range(self.nclass):
-        #     idx = (labels[idx_train].squeeze(1) == i).nonzero().squeeze(1)
-        #     class_repr = ts[idx_train][idx].mean(0)
-        #     proto_list.append(class_repr.view(1, -1))
-        # ts_proto = torch.cat(proto_list, dim=0)
-        # # print(x_proto)
-        # dists = euclidean_dist(ts, ts_proto)
-        # # log_dists = F.log_softmax(-dists * 1e7, dim=1)
-        # return -dists
+        proto_list = []
+        for i in range(self.nclass):
+            idx = (labels[idx_train].squeeze(1) == i).nonzero().squeeze(1)
+            class_repr = ts[idx_train][idx].mean(0)
+            proto_list.append(class_repr.view(1, -1))
+        ts_proto = torch.cat(proto_list, dim=0)
+        # print(x_proto)
+        dists = euclidean_dist(ts, ts_proto)
+        # log_dists = F.log_softmax(-dists * 1e7, dim=1)
+        return -dists
 
-        return ts
+        #return ts
 
 
 # Motif based GCN Model for Semi-supervised time series classification
 class MotifGCN(nn.Module):
 
-    def __init__(self, adj, ts_out, motif_in, motif_out, dropout, nclass):
+    def __init__(self, ts_out, motif_in, motif_out, dropout, nclass, motif_gcn=False):
         super(MotifGCN, self).__init__()
-        ts_hid, motif_hid = 400, 400
-        ts_hid2, motif_hid2 = 100, 100
+        motif_hid = 300
 
+        self.motif_gcn = motif_gcn
         self.nclass = nclass
-        self.adj = adj
 
         self.ac1 = AdjCompute(motif_in)
         self.ac2 = AdjCompute(motif_hid)
@@ -256,34 +255,70 @@ class MotifGCN(nn.Module):
         self.gc1 = GraphConvolution(motif_in, motif_hid)
         self.gc2 = GraphConvolution(motif_hid, motif_out)
 
-        # self.gc1 = BiGraphConv(ts_hid, motif_in, motif_hid)
-        # self.gc2 = BiGraphConv(ts_out, motif_hid, motif_out)
 
-        self.gc1 = BiGraphConv(ts_hid, motif_in, motif_hid)
-        self.gc2 = BiGraphConv(ts_hid2, motif_hid, motif_hid2)
-        self.gc3 = BiGraphConv(2, motif_hid2, motif_out)
+        #  =============================================
+        fc_layers = [2000, 1000, 300]
+        self.linear_1 = nn.Linear(motif_in, fc_layers[0])
+        self.linear_2 = nn.Linear(fc_layers[0], fc_layers[1])
+        self.linear_3 = nn.Linear(fc_layers[1], fc_layers[2])
+        self.bn_1 = nn.BatchNorm1d(fc_layers[0])
+        self.bn_2 = nn.BatchNorm1d(fc_layers[1])
 
-        self.ts_bn = nn.BatchNorm1d(ts_hid)
-        self.ts_bn2 = nn.BatchNorm1d(ts_hid2)
+        ts_layers = [300, 200, 100]
+        self.linear_ts1 = nn.Linear(fc_layers[2], ts_layers[0])
+        self.linear_ts2 = nn.Linear(ts_layers[0], ts_layers[1])
+        self.linear_ts3 = nn.Linear(ts_layers[1], ts_layers[2])
+        self.bn_ts1 = nn.BatchNorm1d(ts_layers[0])
+        self.bn_ts2 = nn.BatchNorm1d(ts_layers[1])
 
-        self.motif_bn = nn.BatchNorm1d(motif_hid)
-        self.motif_bn2 = nn.BatchNorm1d(motif_hid2)
+        # self.ts_bn = nn.BatchNorm1d(ts_hid)
+        # self.ts_bn2 = nn.BatchNorm1d(ts_hid2)
+        #
+        # self.motif_bn = nn.BatchNorm1d(motif_hid)
+        # self.motif_bn2 = nn.BatchNorm1d(motif_hid2)
 
-        self.dropout = dropoutd
+        self.dropout = dropout
 
     def forward(self, input):
-        motif, labels, idx_train = input
+        adj, motif, labels, idx_train = input
 
-        # generate motif embedding by GCN
-        adj = self.ac1(motif)  # N * N
-        motif = F.relu(self.gc1(motif, adj))  # N * hidden_feat
-        # x = F.dropout(x, self.dropout, training=self.training)  # N * hidden_feat
+        if self.motif_gcn:
+            # generate motif embedding by GCN
+            adj = self.ac1(motif)  # N * N
+            motif = F.relu(self.gc1(motif, adj))  # N * hidden_feat
+            # x = F.dropout(x, self.dropout, training=self.training)  # N * hidden_feat
 
-        adj = self.ac2(motif)  # N * N
-        motif = self.gc2(motif, adj)
+            adj = self.ac2(motif)  # N * N
+            motif = self.gc2(motif, adj)
+        else:
+
+            # linear
+            motif = self.linear_1(motif)
+            motif = self.bn_1(motif)
+            motif = F.leaky_relu(motif)
+
+            motif = self.linear_2(motif)
+            motif = self.bn_2(motif)
+            motif = F.leaky_relu(motif)
+
+            motif = self.linear_3(motif)
+
+        ts = torch.mm(adj, motif)
+
+
+        #
+        # ts = self.linear_ts1(ts)
+        # ts = self.bn_ts1(ts)
+        # ts = F.leaky_relu(ts)
+        #
+        # ts = self.linear_ts2(ts)
+        # ts = self.bn_ts2(ts)
+        # ts = F.leaky_relu(ts)
+        #
+        # ts = self.linear_ts3(ts)
 
         # generate ts embedding by attention model
-        ts = Att(motif)
+        #ts = Att(motif)
 
         # use prototypical network
 

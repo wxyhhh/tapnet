@@ -19,11 +19,11 @@ parser.add_argument('--no-cuda', action='store_true', default=False,
 parser.add_argument('--fastmode', action='store_true', default=False,
                     help='Validate during training pass.')
 parser.add_argument('--seed', type=int, default=42, help='Random seed.')
-parser.add_argument('--epochs', type=int, default=500,
+parser.add_argument('--epochs', type=int, default=5000,
                     help='Number of epochs to train.')
-parser.add_argument('--lr', type=float, default=0.01,
+parser.add_argument('--lr', type=float, default=0.00005,
                     help='Initial learning rate.')
-parser.add_argument('--weight_decay', type=float, default=5e-1,
+parser.add_argument('--weight_decay', type=float, default=5e-3,
                     help='Weight decay (L2 loss on parameters).')
 parser.add_argument('--hidden', type=int, default=64,
                     help='Number of hidden units.')
@@ -68,42 +68,31 @@ elif model_type == "ProtoGCN":
     input = (features, labels, idx_train)
 elif model_type == "BiGCN":
     adj, motif_features, labels, idx_train, idx_val, idx_test, nclass = load_bigraph(dataset=args.dataset)
-    model = BiGCN(adj=adj,
-                  ts_out=100,
+    model = BiGCN(ts_out=100,
                   motif_in=motif_features.shape[1],
                   motif_out=50,
                   nclass=nclass,
                   dropout=args.dropout)
     if args.cuda:
         model.cuda()
-        motif_features, labels, idx_train = motif_features.cuda(), labels.cuda(), idx_train.cuda()
-    input = (motif_features, labels, idx_train)
+        adj, motif_features, labels, idx_train = adj.cuda(), motif_features.cuda(), labels.cuda(), idx_train.cuda()
+    input = (adj, motif_features, labels, idx_train)
 elif model_type == "MotifGCN":
     adj, motif_features, labels, idx_train, idx_val, idx_test, nclass = load_bigraph(dataset=args.dataset)
-    model = MotifGCN(adj=adj,
-                     ts_out=100,
+    model = MotifGCN(ts_out=100,
                      motif_in=motif_features.shape[1],
                      motif_out=50,
                      nclass=nclass,
                      dropout=args.dropout)
     if args.cuda:
         model.cuda()
-        motif_features, labels, idx_train = motif_features.cuda(), labels.cuda(), idx_train.cuda()
-    input = (motif_features, labels, idx_train)
+        adj, motif_features, labels, idx_train = adj.cuda(), motif_features.cuda(), labels.cuda(), idx_train.cuda()
+    input = (adj, motif_features, labels, idx_train)
 
 
 # init the optimizer
 optimizer = optim.Adam(model.parameters(),
                        lr=args.lr, weight_decay=args.weight_decay)
-
-# cuda
-if args.cuda:
-    model.cuda()
-    features = features.cuda()
-    labels = labels.cuda()
-    idx_train = idx_train.cuda()
-    idx_val = idx_val.cuda()
-    idx_test = idx_test.cuda()
 
 
 # training function
@@ -113,7 +102,7 @@ def train(epoch):
     optimizer.zero_grad()
     output = model(input)
     # print(features[idx_train])
-    # print(output[idx_train])
+    #print(output[idx_train])
 
     loss_train = F.cross_entropy(output[idx_train], torch.squeeze(labels[idx_train]))
     acc_train = accuracy(output[idx_train], labels[idx_train])
@@ -129,7 +118,7 @@ def train(epoch):
     model.eval()
     loss_val = F.cross_entropy(output[idx_val], torch.squeeze(labels[idx_val]))
     acc_val = accuracy(output[idx_val], labels[idx_val])
-    #print(output[idx_val])
+    # print(output[idx_val])
     print('Epoch: {:04d}'.format(epoch+1),
           'loss_train: {:.4f}'.format(loss_train.item()),
           'acc_train: {:.4f}'.format(acc_train.item()),
