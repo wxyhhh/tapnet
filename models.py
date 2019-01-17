@@ -356,3 +356,145 @@ class MotifGCN(nn.Module):
         dists = euclidean_dist(ts, ts_proto)
         # log_dists = F.log_softmax(-dists * 1e7, dim=1)
         return -dists
+
+
+# Time Series Prediction Network
+class TPNet(nn.Module):
+
+    def __init__(self, channel, ts_length, nclass, dropout, use_att=False):
+        super(TPNet, self).__init__()
+
+        self.channel = channel
+        self.ts_length = ts_length
+        self.nclass = nclass
+        # self.ac1 = AdjCompute(nfeat)
+        # self.ac2 = AdjCompute(nhid)
+        # #self.adj_W1 = nn.Linear(self.cmnt_length * 4, 1, bias=True)
+        #
+        # self.gc1 = GraphConvolution(nfeat, nhid)
+        # self.gc2 = GraphConvolution(nhid, 32)
+        self.dropout = dropout
+
+        # convolutional layer
+        # features for each hidden layers
+        out_channels = [512, 512, 256, 256]
+        kernels = [8, 5, 3, 2]
+        poolings = [2, 2, 2, 2]
+        self.conv_1 = nn.Conv1d(self.channel, out_channels[0], kernel_size=kernels[0], stride=1)
+        self.maxpool_1 = nn.MaxPool1d(poolings[0])
+        self.bn_1 = nn.BatchNorm1d(out_channels[0])
+        self.conv_2 = nn.Conv1d(out_channels[0], out_channels[1], kernel_size=kernels[1], stride=1)
+        self.maxpool_2 = nn.MaxPool1d(poolings[1])
+        self.bn_2 = nn.BatchNorm1d(out_channels[1])
+        self.conv_3 = nn.Conv1d(out_channels[1], out_channels[2], kernel_size=kernels[2], stride=1)
+        self.maxpool_3 = nn.MaxPool1d(poolings[2])
+        self.bn_3 = nn.BatchNorm1d(out_channels[2])
+        self.conv_4 = nn.Conv1d(out_channels[2], out_channels[3], kernel_size=kernels[3], stride=1)
+        self.maxpool_4 = nn.MaxPool1d(poolings[3])
+        self.bn_4 = nn.BatchNorm1d(out_channels[3])
+
+
+
+        # self.conv = nn.Sequential(
+        #     nn.Conv1d(self.channel, out_channels[0], kernel_size=8, stride=2),
+        #     nn.BatchNorm1d(out_channels[0]),
+        #     nn.ReLU(),
+        #     # nn.Conv1d(nhids[0], nhids[1], kernel_size=5, stride=2),
+        #     # nn.BatchNorm1d(nhids[1]),
+        #     # nn.ReLU(),
+        #     # nn.Conv1d(nhids[1], nhids[2], kernel_size=3, stride=2),
+        #     # nn.BatchNorm1d(nhids[1]),
+        #     # nn.ReLU()
+        # )
+
+        self.linear_init_feature = out_channels[2] * (self.ts_length - sum(kernels[:3]) + len(kernels[0:3]))
+        self.linear_init_feature = out_channels[2] * (5)
+        # Representation mapping function
+        fc_layers = [2000, 1000, 300]
+        self.linear_mapping = nn.Sequential(
+            nn.Linear(self.linear_init_feature, fc_layers[0]),
+            nn.BatchNorm1d(fc_layers[0]),
+            nn.ReLU(),
+            nn.Linear(fc_layers[0], fc_layers[1]),
+            nn.BatchNorm1d(fc_layers[1]),
+            nn.ReLU(),
+            nn.Linear(fc_layers[1], fc_layers[2]),
+        )
+
+        # Representation mapping function
+        # fc_layers = [2000, 1000, 300]
+        # self.linear_1 = nn.Linear(nhids[-1], fc_layers[0])
+        # self.linear_2 = nn.Linear(fc_layers[0], fc_layers[1])
+        # self.linear_3 = nn.Linear(fc_layers[1], fc_layers[2])
+        # self.bn_1 = nn.BatchNorm1d(fc_layers[0])
+        # self.bn_2 = nn.BatchNorm1d(fc_layers[1])
+
+        # Attention
+        self.use_att = use_att
+        if self.use_att:
+            D = 128
+            self.attention = nn.Sequential(
+                nn.Linear(fc_layers[-1], D),
+                nn.Tanh(),
+                nn.Linear(D, 1)
+            )
+            # self.att_w = nn.Linear(D, 1)
+            # self.att_v = nn.Linear(D, fc_layers[-1])
+
+
+    def forward(self, input):
+        ts, labels, idx_train = input  # x is N * L, where L is the time-series feature dimension
+
+        # N: sample number
+        # C: channel (number of variates in time series)
+        # L: length of time series
+        N = ts.size(0)
+
+
+        # input ts: # N * C * L
+        ts = self.conv_1(ts)  # N * C * L
+        ts = self.bn_1(ts)
+        ts = self.maxpool_1(ts)
+        ts = F.leaky_relu(ts)
+
+        ts = self.conv_2(ts)
+        ts = self.bn_2(ts)
+        ts = self.maxpool_2(ts)
+        ts = F.leaky_relu(ts)
+
+        ts = self.conv_3(ts)
+        ts = self.bn_3(ts)
+        #ts = self.maxpool_3(ts)
+        ts = F.leaky_relu(ts)
+
+        # ts = self.conv_4(ts)
+        # ts = self.bn_4(ts)
+        # #ts = self.maxpool_4(ts)
+        # ts = F.leaky_relu(ts)
+        #print("ts dimension", ts.size())
+        ts = ts.view(N, -1)
+
+        #ts = self.conv(ts)
+
+        # linear
+        ts = self.linear_mapping(ts)
+
+        # generate the class protocal with dimension C * D (nclass * dim)
+        proto_list = []
+        for i in range(self.nclass):
+            idx = (labels[idx_train].squeeze(1) == i).nonzero().squeeze(1)
+            if self.use_att:
+                A = self.attention(ts[idx_train][idx])  # N_k * 1
+                A = torch.transpose(A, 1, 0)  # 1 * N_k
+                A = F.softmax(A, dim=1)  # softmax over N_k
+                class_repr = torch.mm(A, x[idx_train][idx]) # 1 * L
+                class_repr = torch.transpose(class_repr, 1, 0)  # L * 1
+            else:  # if do not use attention, simply use the mean of training samples with the same labels.
+                class_repr = ts[idx_train][idx].mean(0)  # L * 1
+            proto_list.append(class_repr.view(1, -1))
+        x_proto = torch.cat(proto_list, dim=0)
+        #print(x_proto)
+        dists = euclidean_dist(ts, x_proto)
+        #log_dists = F.log_softmax(-dists * 1e7, dim=1)
+        return -dists
+

@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from layers import GraphConvolution, BiGraphConv
 from utils import euclidean_dist, normalize
 
-# baseline FGCN
+# baseline Bipartite Iterpretable GCN
 class BiInterGCN(nn.Module):
 
     def __init__(self, ts_out, motif_in, motif_out, nclass, dropout, use_att=True):
@@ -98,6 +98,7 @@ class BiInterGCN(nn.Module):
         dists = euclidean_dist(ts, x_proto)
         #log_dists = F.log_softmax(-dists * 1e7, dim=1)
         return -dists
+
 
 # baseline FGCN
 class InterGCN(nn.Module):

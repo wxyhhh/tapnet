@@ -10,11 +10,21 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 from utils import *
-from models import FGCN, ProtoGCN, BiGCN, MotifGCN
+from models import FGCN, ProtoGCN, BiGCN, MotifGCN, TPNet
 from interpret_model import InterGCN
 
+datasets = ["ArticularyWordRecognition", "AtrialFibrilation", "BasicMotions", "CharacterTrajectories", "Cricket",
+            "EigenWorms", "Epilepsy", "ERing", "EthanolConcentration", "FingerMovements",
+             "HandMovementDirection", "Handwriting", "Heartbeat", "JapaneseVowels", "Libras",
+            "LSST", "MotorImagery", "NATOPS", "PEMS-SF", "PenDigits",
+            "Phoneme", "RacketSports", "SelfRegulationSCP1", "SelfRegulationSCP2", "SpokenArabicDigits",
+            "StandWalkJump", "UWaveGestureLibrary", "", "", ""]
 # Training settings
 parser = argparse.ArgumentParser()
+parser.add_argument('--data_path', type=str, default="./data/raw/",
+                    help='the path of data.')
+parser.add_argument('--dataset', type=str, default=datasets[14],
+                    help='time series dataset. Options: See the datasets list')
 parser.add_argument('--no-cuda', action='store_true', default=False,
                     help='Disables CUDA training.')
 parser.add_argument('--fastmode', action='store_true', default=False,
@@ -22,7 +32,7 @@ parser.add_argument('--fastmode', action='store_true', default=False,
 parser.add_argument('--seed', type=int, default=42, help='Random seed.')
 parser.add_argument('--epochs', type=int, default=3000,
                     help='Number of epochs to train.')
-parser.add_argument('--lr', type=float, default=0.00005,
+parser.add_argument('--lr', type=float, default=0.00001,
                     help='Initial learning rate. default:[0.00005]')
 parser.add_argument('--weight_decay', type=float, default=5e-3,
                     help='Weight decay (L2 loss on parameters).')
@@ -30,8 +40,7 @@ parser.add_argument('--hidden', type=int, default=64,
                     help='Number of hidden units.')
 parser.add_argument('--dropout', type=float, default=0,
                     help='Dropout rate (1 - keep probability). Default:0.5')
-parser.add_argument('--dataset', type=str, default="ECG",
-                    help='time series dataset. Options: ECG, PEN')
+
 
 args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()
@@ -45,7 +54,7 @@ if args.cuda:
 # adj, features, labels, idx_train, idx_val, idx_test = load_data()
 print("Loading dataset", args.dataset, "...")
 # Model and optimizer
-model_type = "ProtoGCN"  # Options: FGCN, ProtoGCN, BiGCN, MotifGCN, InterGCN
+model_type = "TPNet"  # Options: FGCN, ProtoGCN, BiGCN, MotifGCN, InterGCN, TPNet
 if model_type == "FGCN":
     features, labels, idx_train, idx_val, idx_test, nclass = load_muse_data(dataset=args.dataset)
     model = FGCN(nfeat=features.shape[1],
@@ -57,7 +66,7 @@ if model_type == "FGCN":
         features = features.cuda()
     input = features
 elif model_type == "ProtoGCN":
-    features, labels, idx_train, idx_val, idx_test, nclass = load_muse_data(dataset=args.dataset)
+    features, labels, idx_train, idx_val, idx_test, nclass = load_muse_data(args.data_path, dataset=args.dataset)
     model = ProtoGCN(nfeat=features.shape[1],
                      nhid=args.hidden,
                      nclass=nclass,
@@ -68,7 +77,7 @@ elif model_type == "ProtoGCN":
         features, labels, idx_train = features.cuda(), labels.cuda(), idx_train.cuda()
     input = (features, labels, idx_train)
 elif model_type == "BiGCN":
-    adj, motif_features, labels, idx_train, idx_val, idx_test, nclass = load_bigraph(dataset=args.dataset)
+    adj, motif_features, labels, idx_train, idx_val, idx_test, nclass = load_bigraph(args.data_path, dataset=args.dataset)
     model = BiGCN(ts_out=100,
                   motif_in=motif_features.shape[1],
                   motif_out=50,
@@ -79,7 +88,7 @@ elif model_type == "BiGCN":
         adj, motif_features, labels, idx_train = adj.cuda(), motif_features.cuda(), labels.cuda(), idx_train.cuda()
     input = (adj, motif_features, labels, idx_train)
 elif model_type == "MotifGCN":
-    adj, motif_features, labels, idx_train, idx_val, idx_test, nclass = load_bigraph(dataset=args.dataset)
+    adj, motif_features, labels, idx_train, idx_val, idx_test, nclass = load_bigraph(args.data_path, dataset=args.dataset)
     model = MotifGCN(ts_out=100,
                      motif_in=motif_features.shape[1],
                      motif_out=50,
@@ -90,7 +99,7 @@ elif model_type == "MotifGCN":
         adj, motif_features, labels, idx_train = adj.cuda(), motif_features.cuda(), labels.cuda(), idx_train.cuda()
     input = (adj, motif_features, labels, idx_train)
 elif model_type == "InterGCN":
-    adj, motif_features, labels, idx_train, idx_val, idx_test, nclass = load_bigraph(dataset=args.dataset)
+    adj, motif_features, labels, idx_train, idx_val, idx_test, nclass = load_bigraph(args.data_path, dataset=args.dataset)
     model = InterGCN(ts_out=100,
                      motif_in=motif_features.shape[1],
                      motif_out=50,
@@ -100,6 +109,16 @@ elif model_type == "InterGCN":
         model.cuda()
         adj, motif_features, labels, idx_train = adj.cuda(), motif_features.cuda(), labels.cuda(), idx_train.cuda()
     input = (adj, motif_features, labels, idx_train)
+elif model_type == "TPNet":
+    ts, labels, idx_train, idx_val, idx_test, nclass = load_raw_ts(args.data_path, dataset=args.dataset)
+    model = TPNet(channel=ts.size(1),
+                  ts_length=ts.size(2),
+                  nclass=nclass,
+                  dropout=args.dropout)
+    if args.cuda:
+        model.cuda()
+        ts, labels, idx_train = ts.cuda(), labels.cuda(), idx_train.cuda()
+    input = (ts, labels, idx_train)
 
 # init the optimizer
 optimizer = optim.Adam(model.parameters(),

@@ -26,6 +26,39 @@ def loaddata(filename):
     return a
 
 
+def load_raw_ts(path, dataset, tensor_format=True):
+    path = path + dataset + "/"
+    x_train = np.load(path + 'X_train.npy')
+    y_train = np.load(path + 'y_train.npy')
+    x_test = np.load(path + 'X_test.npy')
+    y_test = np.load(path + 'y_test.npy')
+
+    ts = np.concatenate((x_train, x_test), axis=0)
+    ts = np.transpose(ts, axes=(0, 2, 1))
+    labels = np.concatenate((y_train, y_test), axis=0)
+
+    nclass = np.amax(labels) + 1
+
+    # total data size: 934
+    train_size = y_train.shape[0]
+    # train_size = 10
+    total_size = labels.shape[0]
+    idx_train = range(train_size)
+    idx_val = range(train_size, total_size)
+    idx_test = range(train_size, total_size)
+
+    if tensor_format:
+        # features = torch.FloatTensor(np.array(features))
+        ts = torch.FloatTensor(np.array(ts))
+        labels = torch.LongTensor(labels)
+
+        idx_train = torch.LongTensor(idx_train)
+        idx_val = torch.LongTensor(idx_val)
+        idx_test = torch.LongTensor(idx_test)
+
+    return ts, labels, idx_train, idx_val, idx_test, nclass
+
+
 def load_bigraph_adj(filename, shape):
     df = pd.read_csv(filename, header=None, delimiter=",")
     a = np.array(df.as_matrix())
