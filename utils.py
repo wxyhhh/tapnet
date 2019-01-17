@@ -38,7 +38,7 @@ def load_bigraph_adj(filename, shape):
 
 
 # load the data generated from MUSE
-def load_bigraph(path="./data/muse/", dataset="ECG", tensor_format=True):
+def load_bigraph(path="./data/", dataset="ECG", tensor_format=True):
 
     path = path + dataset + "/"
     file_header = dataset.lower() + "_"
@@ -85,7 +85,7 @@ def load_bigraph(path="./data/muse/", dataset="ECG", tensor_format=True):
 
 
 # load the data generated from MUSE
-def load_muse_data(path="./data/muse/", dataset="ECG", tensor_format=True):
+def load_muse_data(path="./data/", dataset="ECG", tensor_format=True):
 
     path = path + dataset + "/"
     file_header = dataset.lower() + "_"
@@ -120,37 +120,6 @@ def load_muse_data(path="./data/muse/", dataset="ECG", tensor_format=True):
         idx_test = torch.LongTensor(idx_test)
 
     return features, labels, idx_train, idx_val, idx_test, nclass
-
-
-def load_ts_data(path="./data/time_series/", tensor_format=True):
-
-    adj = loadsparse(path + "graph.csv")
-    # features = loadsparse(path + "feature.csv")
-    features = loadsparse(path + "all_features.csv")
-    labels = loaddata(path + "labels.csv")
-
-    # build symmetric adjacency matrix
-    #adj = adj + adj.T.multiply(adj.T > adj) - adj.multiply(adj.T > adj)
-
-    #features = normalize(features)
-    adj = normalize(adj + sp.eye(adj.shape[0]))
-
-    # total data size: 934
-    train_size = 300
-    idx_train = range(train_size)
-    idx_val = range(train_size, 934)
-    idx_test = range(train_size, 934)
-
-    if tensor_format:
-        features = torch.FloatTensor(np.array(features.todense()))
-        labels = torch.LongTensor(np.where(labels)[1])
-        adj = sparse_mx_to_torch_sparse_tensor(adj)
-
-        idx_train = torch.LongTensor(idx_train)
-        idx_val = torch.LongTensor(idx_val)
-        idx_test = torch.LongTensor(idx_test)
-
-    return adj, features, labels, idx_train, idx_val, idx_test
 
 
 def normalize(mx):

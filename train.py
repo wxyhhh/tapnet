@@ -11,6 +11,7 @@ import torch.optim as optim
 
 from utils import *
 from models import FGCN, ProtoGCN, BiGCN, MotifGCN
+from interpret_model import InterGCN
 
 # Training settings
 parser = argparse.ArgumentParser()
@@ -19,7 +20,7 @@ parser.add_argument('--no-cuda', action='store_true', default=False,
 parser.add_argument('--fastmode', action='store_true', default=False,
                     help='Validate during training pass.')
 parser.add_argument('--seed', type=int, default=42, help='Random seed.')
-parser.add_argument('--epochs', type=int, default=30,
+parser.add_argument('--epochs', type=int, default=3000,
                     help='Number of epochs to train.')
 parser.add_argument('--lr', type=float, default=0.00005,
                     help='Initial learning rate. default:[0.00005]')
@@ -44,7 +45,7 @@ if args.cuda:
 # adj, features, labels, idx_train, idx_val, idx_test = load_data()
 print("Loading dataset", args.dataset, "...")
 # Model and optimizer
-model_type = "ProtoGCN"  # Options: FGCN, ProtoGCN, BiGCN, MotifGCN
+model_type = "ProtoGCN"  # Options: FGCN, ProtoGCN, BiGCN, MotifGCN, InterGCN
 if model_type == "FGCN":
     features, labels, idx_train, idx_val, idx_test, nclass = load_muse_data(dataset=args.dataset)
     model = FGCN(nfeat=features.shape[1],
@@ -88,7 +89,17 @@ elif model_type == "MotifGCN":
         model.cuda()
         adj, motif_features, labels, idx_train = adj.cuda(), motif_features.cuda(), labels.cuda(), idx_train.cuda()
     input = (adj, motif_features, labels, idx_train)
-
+elif model_type == "InterGCN":
+    adj, motif_features, labels, idx_train, idx_val, idx_test, nclass = load_bigraph(dataset=args.dataset)
+    model = InterGCN(ts_out=100,
+                     motif_in=motif_features.shape[1],
+                     motif_out=50,
+                     nclass=nclass,
+                     dropout=args.dropout)
+    if args.cuda:
+        model.cuda()
+        adj, motif_features, labels, idx_train = adj.cuda(), motif_features.cuda(), labels.cuda(), idx_train.cuda()
+    input = (adj, motif_features, labels, idx_train)
 
 # init the optimizer
 optimizer = optim.Adam(model.parameters(),

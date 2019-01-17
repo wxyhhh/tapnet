@@ -126,7 +126,7 @@ class FGCN(nn.Module):
 # baseline FGCN
 class ProtoGCN(nn.Module):
 
-    def __init__(self, nfeat, nhid, nclass, dropout, use_att=True):
+    def __init__(self, nfeat, nhid, nclass, dropout, use_att=False):
         super(ProtoGCN, self).__init__()
 
         self.nclass = nclass
