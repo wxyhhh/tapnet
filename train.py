@@ -21,7 +21,7 @@ datasets = ["ArticularyWordRecognition", "AtrialFibrilation", "BasicMotions", "C
             "StandWalkJump", "UWaveGestureLibrary", "", "", ""]
 # Training settings
 parser = argparse.ArgumentParser()
-parser.add_argument('--data_path', type=str, default="./data/raw/",
+parser.add_argument('--data_path', type=str, default="./data/",
                     help='the path of data.')
 parser.add_argument('--dataset', type=str, default=datasets[14],
                     help='time series dataset. Options: See the datasets list')
@@ -54,7 +54,7 @@ if args.cuda:
 # adj, features, labels, idx_train, idx_val, idx_test = load_data()
 print("Loading dataset", args.dataset, "...")
 # Model and optimizer
-model_type = "TPNet"  # Options: FGCN, ProtoGCN, BiGCN, MotifGCN, InterGCN, TPNet
+model_type = "ProtoGCN"  # Options: FGCN, ProtoGCN, BiGCN, MotifGCN, InterGCN, TPNet
 if model_type == "FGCN":
     features, labels, idx_train, idx_val, idx_test, nclass = load_muse_data(dataset=args.dataset)
     model = FGCN(nfeat=features.shape[1],
