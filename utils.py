@@ -20,6 +20,14 @@ def loadsparse(filename):
     a = sp.csr_matrix(a)
     return a
 
+def loadsparse2(fname):
+    df = pd.read_csv(fname, header=None, delimiter=",")
+    a = np.array(df.as_matrix())
+    row=np.max(a[:,0])
+    column=np.max(a[:,1])
+    s=sp.csr_matrix((a[:,2], (a[:,0],a[:,1])), shape=(row.astype('int64')+1, column.astype('int64')+1))
+    return s
+
 def loaddata(filename):
     df = pd.read_csv(filename, header=None, delimiter=",")
     a = np.array(df.as_matrix())
@@ -118,13 +126,21 @@ def load_bigraph(path="./data/", dataset="ECG", tensor_format=True):
 
 
 # load the data generated from MUSE
-def load_muse_data(path="./data/", dataset="ECG", tensor_format=True):
+def load_muse_data(path="./data/", dataset="ECG", tensor_format=True, random_proj=True, random_projection_size=30000,random_projection_times=10):
 
     path = path + dataset + "/"
     file_header = dataset.lower() + "_"
 
-    train_features = loadsparse(path + file_header + "train.csv")
-    test_features = loadsparse(path + file_header + "test.csv")
+    train_features = loadsparse2(path + file_header + "train.csv")
+    test_features = loadsparse2(path + file_header + "test.csv")
+    print(train_features.shape)
+    print(test_features.shape)
+    mf=np.min((test_features.shape[1],train_features.shape[1]));
+    train_features=train_features[:,0:mf];
+    test_features=test_features[:,0:mf];
+    
+    
+    
     features = sp.vstack([train_features, test_features])
     features = normalize(features)
 
@@ -145,7 +161,7 @@ def load_muse_data(path="./data/", dataset="ECG", tensor_format=True):
     idx_test = range(train_size, total_size)
 
     if tensor_format:
-        features = torch.FloatTensor(np.array(features))
+        features = torch.FloatTensor(np.array(features.toarray()))
         labels = torch.LongTensor(labels)
 
         idx_train = torch.LongTensor(idx_train)
@@ -162,12 +178,24 @@ def normalize(mx):
     # r_inv[np.isinf(r_inv)] = 0.
     # r_mat_inv = sp.diags(r_inv)
     # mx = r_mat_inv.dot(mx)
-
     row_sums = mx.sum(axis=1)
-    mx = mx / row_sums
+    mx=mx.astype('float32')
+    row_sums_inverse=1/row_sums
+    f=mx.multiply(row_sums_inverse)
+    return sp.csr_matrix(f).astype('float32')
 
-    return mx
-
+def convert2sparse(features):
+    aaa=sp.coo_matrix(features)
+    value = aaa.data
+    column_index = aaa.col
+    row_pointers = aaa.row
+    a=np.array(column_index)
+    b=np.array(row_pointers)
+    a=np.reshape(a,(a.shape[0],1))
+    b=np.reshape(b,(b.shape[0],1))
+    s=np.concatenate((a,b),axis=1)
+    t=torch.sparse.FloatTensor(torch.LongTensor(s.T),torch.FloatTensor(value))
+    return t
 
 def accuracy(output, labels):
 
@@ -176,6 +204,30 @@ def accuracy(output, labels):
     accuracy_score = (sklearn.metrics.accuracy_score(labels, preds))
 
     return accuracy_score
+
+def random_hash(features,K):
+    idx=np.array(range(features.shape[1]));
+    np.random.shuffle(idx)
+    feat=features[:,idx]
+    for i in range(features.shape[0]):
+        f=np.array(feat[0].toarray())
+        f.reshape
+
+
+    tmp=torch.FloatTensor(features[:,idx[0:K]].toarray())
+    return tmp
+
+def to_sparse(x):
+    """ converts dense tensor x to sparse format """
+    x_typename = torch.typename(x).split('.')[-1]
+    sparse_tensortype = getattr(torch.sparse, x_typename)
+
+    indices = torch.nonzero(x)
+    if len(indices.shape) == 0:  # if all elements are zeros
+        return sparse_tensortype(*x.shape)
+    indices = indices.t()
+    values = x[tuple(indices[i] for i in range(indices.shape[0]))]
+    return sparse_tensortype(indices, values, x.size())
 
 
 def sparse_mx_to_torch_sparse_tensor(sparse_mx):
