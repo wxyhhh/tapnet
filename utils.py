@@ -129,7 +129,7 @@ def load_bigraph(path="./data/", dataset="ECG", tensor_format=True):
 def load_muse_data(path="./data/", dataset="ECG", tensor_format=True, random_proj=True, random_projection_size=30000,random_projection_times=10):
 
     path = path + dataset + "/"
-    file_header = dataset.lower() + "_"
+    file_header = dataset + "_"
 
     train_features = loadsparse2(path + file_header + "train.csv")
     test_features = loadsparse2(path + file_header + "test.csv")
