@@ -8,7 +8,7 @@ from utils import euclidean_dist, normalize
 # baseline ProtoGCN
 class ProtoGCN(nn.Module):
 
-    def __init__(self, nfeat, nhid, nclass, dropout, use_att=True, use_ss=True):
+    def __init__(self, nfeat, nhid, nclass, dropout, use_att=True, use_ss=False):
         super(ProtoGCN, self).__init__()
 
         self.nclass = nclass

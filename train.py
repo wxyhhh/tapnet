@@ -23,18 +23,18 @@ datasets = ["ArticularyWordRecognition", "AtrialFibrilation", "BasicMotions", "C
 parser = argparse.ArgumentParser()
 parser.add_argument('--data_path', type=str, default="./data/",
                     help='the path of data.')
-parser.add_argument('--dataset', type=str, default="ECG",
+parser.add_argument('--dataset', type=str, default="NATOPS",
                     help='time series dataset. Options: See the datasets list')
 parser.add_argument('--no-cuda', action='store_true', default=False,
                     help='Disables CUDA training.')
-parser.add_argument('--fastmode', action='store_true', default=False,
-                    help='Validate during training pass.')
+parser.add_argument('--ss', action='store_true', default=False,
+                    help='Use semi-supervised learning.')
 parser.add_argument('--seed', type=int, default=42, help='Random seed.')
 parser.add_argument('--epochs', type=int, default=3000,
                     help='Number of epochs to train.')
-parser.add_argument('--lr', type=float, default=0.00005,
+parser.add_argument('--lr', type=float, default=0.00002,
                     help='Initial learning rate. default:[0.00005]')
-parser.add_argument('--weight_decay', type=float, default=5e-3,
+parser.add_argument('--weight_decay', type=float, default=5e-8,
                     help='Weight decay (L2 loss on parameters).')
 parser.add_argument('--hidden', type=int, default=64,
                     help='Number of hidden units.')
@@ -61,7 +61,8 @@ if model_type == "ProtoGCN":
     model = ProtoGCN(nfeat=features.shape[1],
                      nhid=args.hidden,
                      nclass=nclass,
-                     dropout=args.dropout)
+                     dropout=args.dropout,
+                     use_ss=False)
     # cuda
     if args.cuda:
         model.cuda()
@@ -98,7 +99,7 @@ def train(epoch):
     acc_val = accuracy(output[idx_val], labels[idx_val])
     # print(output[idx_val])
     print('Epoch: {:04d}'.format(epoch+1),
-          'loss_train: {:.4f}'.format(loss_train.item()),
+          'loss_train: {:.8f}'.format(loss_train.item()),
           'acc_train: {:.4f}'.format(acc_train.item()),
           'loss_val: {:.4f}'.format(loss_val.item()),
           'acc_val: {:.4f}'.format(acc_val.item()),
