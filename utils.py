@@ -70,23 +70,43 @@ def load_raw_ts(path, dataset, tensor_format=True):
     return ts, labels, idx_train, idx_val, idx_test, nclass
 
 
-def load_muse_data(data_path="./data/", dataset="ECG", tensor_format=True):
+def load_muse(data_path="./data/", dataset="ECG", sparse=False, tensor_format=True, shuffle=True):
 
-    path = data_path + "muse/" + dataset + "/"
+    if sparse:
+        path = data_path + "muse_sparse/" + dataset + "/"
+    else:
+        path = data_path + "muse/" + dataset + "/"
     file_header = dataset.lower() + "_"
 
-    train_features = loadsparse(path + file_header + "train.csv")
-    # shuttle train features
-    non_test_size = train_features.shape[0]
-    idx_non_test = random.sample(range(non_test_size), non_test_size)
-    train_features = train_features[idx_non_test, ]
+    # load feature
+    if sparse:
+        train_features = loadsparse2(path + file_header + "train.csv")
+        test_features = loadsparse2(path + file_header + "test.csv")
 
-    test_features = loadsparse(path + file_header + "test.csv")
+    else:
+        train_features = loadsparse(path + file_header + "train.csv")
+        test_features = loadsparse(path + file_header + "test.csv")
+
+
+    # crop the features
+    mf = np.min((test_features.shape[1], train_features.shape[1]))
+    train_features = train_features[:, 0: mf]
+    test_features = test_features[:, 0: mf]
+
+    print("Train Set:", train_features.shape, ",", "Test Set:", test_features.shape)
+
+    if shuffle:
+        # shuttle train features
+        non_test_size = train_features.shape[0]
+        idx_non_test = random.sample(range(non_test_size), non_test_size)
+        train_features = train_features[idx_non_test, ]
+
     features = sp.vstack([train_features, test_features])
     features = normalize(features)
 
     train_labels = loaddata(path + file_header + "train_label.csv")
-    train_labels = train_labels[idx_non_test, ]  # shuffle labels
+    if shuffle:
+        train_labels = train_labels[idx_non_test, ]  # shuffle labels
 
     test_labels = loaddata(path + file_header + "test_label.csv")
     labels = np.concatenate((train_labels, test_labels), axis=0)
@@ -100,48 +120,6 @@ def load_muse_data(data_path="./data/", dataset="ECG", tensor_format=True):
     idx_train = range(non_test_size)
     idx_val = range(non_test_size, total_size)
     idx_test = range(non_test_size, total_size)
-
-    if tensor_format:
-        features = torch.FloatTensor(np.array(features))
-        labels = torch.LongTensor(labels)
-
-        idx_train = torch.LongTensor(idx_train)
-        idx_val = torch.LongTensor(idx_val)
-        idx_test = torch.LongTensor(idx_test)
-
-    return features, labels, idx_train, idx_val, idx_test, nclass
-
-
-# load the data generated from MUSE
-def load_muse_sparse(path="./data/", dataset="ECG", tensor_format=True, random_proj=True, random_projection_size=30000,
-                   random_projection_times=10):
-    path = path + "muse_sparse/" + dataset + "/"
-    file_header = dataset + "_"
-
-    train_features = loadsparse2(path + file_header + "train.csv")
-    test_features = loadsparse2(path + file_header + "test.csv")
-    print(train_features.shape)
-    print(test_features.shape)
-    mf = np.min((test_features.shape[1], train_features.shape[1]));
-    train_features = train_features[:, 0: mf]
-    test_features = test_features[:, 0: mf]
-
-    features = sp.vstack([train_features, test_features])
-    features = normalize(features)
-
-    train_labels = loaddata(path + file_header + "train_label.csv")
-    test_labels = loaddata(path + file_header + "test_label.csv")
-    labels = np.concatenate((train_labels, test_labels), axis=0)
-
-    nclass = np.amax(labels) + 1
-
-    # total data size: 934
-    train_size = train_features.shape[0]
-    # train_size = 10
-    total_size = features.shape[0]
-    idx_train = range(train_size)
-    idx_val = range(train_size, total_size)
-    idx_test = range(train_size, total_size)
 
     if tensor_format:
         features = torch.FloatTensor(np.array(features.toarray()))

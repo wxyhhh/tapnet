@@ -30,7 +30,7 @@ parser.add_argument('--no-cuda', action='store_true', default=False,
 parser.add_argument('--ss', action='store_true', default=False,
                     help='Use semi-supervised learning.')
 parser.add_argument('--seed', type=int, default=42, help='Random seed.')
-parser.add_argument('--epochs', type=int, default=3000,
+parser.add_argument('--epochs', type=int, default=10000,
                     help='Number of epochs to train.')
 parser.add_argument('--lr', type=float, default=0.00002,
                     help='Initial learning rate. default:[0.00005]')
@@ -56,8 +56,8 @@ print("Loading dataset", args.dataset, "...")
 # Model and optimizer
 model_type = "ProtoGCN"  # Options: FGCN, ProtoGCN, BiGCN, MotifGCN, InterGCN, TPNet
 if model_type == "ProtoGCN":
-    #features, labels, idx_train, idx_val, idx_test, nclass = load_muse(args.data_path, dataset=args.dataset)
-    features, labels, idx_train, idx_val, idx_test, nclass = load_muse_sparse(args.data_path, dataset=args.dataset)
+    features, labels, idx_train, idx_val, idx_test, nclass = load_muse(args.data_path, dataset=args.dataset, sparse=True)
+    #features, labels, idx_train, idx_val, idx_test, nclass = load_muse(args.data_path, dataset=args.dataset, sparse=True)
     model = ProtoGCN(nfeat=features.shape[1],
                      nhid=args.hidden,
                      nclass=nclass,
