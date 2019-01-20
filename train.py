@@ -27,14 +27,14 @@ parser.add_argument('--dataset', type=str, default="ECG",
                     help='time series dataset. Options: See the datasets list')
 parser.add_argument('--no-cuda', action='store_true', default=False,
                     help='Disables CUDA training.')
-parser.add_argument('--ss', action='store_true', default=False,
-                    help='Use semi-supervised Mode.')
+parser.add_argument('--fastmode', action='store_true', default=False,
+                    help='Validate during training pass.')
 parser.add_argument('--seed', type=int, default=42, help='Random seed.')
 parser.add_argument('--epochs', type=int, default=3000,
                     help='Number of epochs to train.')
-parser.add_argument('--lr', type=float, default=0.00001,
+parser.add_argument('--lr', type=float, default=0.00005,
                     help='Initial learning rate. default:[0.00005]')
-parser.add_argument('--weight_decay', type=float, default=5e-8,
+parser.add_argument('--weight_decay', type=float, default=5e-3,
                     help='Weight decay (L2 loss on parameters).')
 parser.add_argument('--hidden', type=int, default=64,
                     help='Number of hidden units.')
@@ -87,20 +87,21 @@ def train(epoch):
     loss_train.backward()
     optimizer.step()
 
+    # if not args.fastmode:
+    #     # Evaluate validation set performance separately,
+    #     # deactivates dropout during validation run.
+    #     model.eval()
+    #     output = model(features)
+
+    #print(output[idx_val])
     loss_val = F.cross_entropy(output[idx_val], torch.squeeze(labels[idx_val]))
     acc_val = accuracy(output[idx_val], labels[idx_val])
-
-    loss_test = F.cross_entropy(output[idx_test], torch.squeeze(labels[idx_test]))
-    acc_test = accuracy(output[idx_test], labels[idx_test])
-
     # print(output[idx_val])
     print('Epoch: {:04d}'.format(epoch+1),
-          'loss_train: {:.7f}'.format(loss_train.item()),
+          'loss_train: {:.4f}'.format(loss_train.item()),
           'acc_train: {:.4f}'.format(acc_train.item()),
-          # 'loss_val: {:.4f}'.format(loss_val.item()),
-          # 'acc_val: {:.4f}'.format(acc_val.item()),
-          'loss_test: {:.4f}'.format(loss_test.item()),
-          'acc_test: {:.4f}'.format(acc_test.item()),
+          'loss_val: {:.4f}'.format(loss_val.item()),
+          'acc_val: {:.4f}'.format(acc_val.item()),
           'time: {:.4f}s'.format(time.time() - t))
 
 
