@@ -10,7 +10,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 from utils import *
-from models import FGCN, ProtoGCN, BiGCN, MotifGCN, TPNet
+from models import *
 from interpret_model import InterGCN
 
 datasets = ["ArticularyWordRecognition", "AtrialFibrilation", "BasicMotions", "CharacterTrajectories", "Cricket",
@@ -21,20 +21,20 @@ datasets = ["ArticularyWordRecognition", "AtrialFibrilation", "BasicMotions", "C
             "StandWalkJump", "UWaveGestureLibrary", "", "", ""]
 # Training settings
 parser = argparse.ArgumentParser()
-parser.add_argument('--data_path', type=str, default="./data/raw/",
+parser.add_argument('--data_path', type=str, default="./data/",
                     help='the path of data.')
-parser.add_argument('--dataset', type=str, default=datasets[14],
+parser.add_argument('--dataset', type=str, default="ECG",
                     help='time series dataset. Options: See the datasets list')
 parser.add_argument('--no-cuda', action='store_true', default=False,
                     help='Disables CUDA training.')
-parser.add_argument('--fastmode', action='store_true', default=False,
-                    help='Validate during training pass.')
+parser.add_argument('--ss', action='store_true', default=False,
+                    help='Use semi-supervised Mode.')
 parser.add_argument('--seed', type=int, default=42, help='Random seed.')
 parser.add_argument('--epochs', type=int, default=3000,
                     help='Number of epochs to train.')
 parser.add_argument('--lr', type=float, default=0.00001,
                     help='Initial learning rate. default:[0.00005]')
-parser.add_argument('--weight_decay', type=float, default=5e-3,
+parser.add_argument('--weight_decay', type=float, default=5e-8,
                     help='Weight decay (L2 loss on parameters).')
 parser.add_argument('--hidden', type=int, default=64,
                     help='Number of hidden units.')
@@ -54,18 +54,9 @@ if args.cuda:
 # adj, features, labels, idx_train, idx_val, idx_test = load_data()
 print("Loading dataset", args.dataset, "...")
 # Model and optimizer
-model_type = "TPNet"  # Options: FGCN, ProtoGCN, BiGCN, MotifGCN, InterGCN, TPNet
-if model_type == "FGCN":
-    features, labels, idx_train, idx_val, idx_test, nclass = load_muse_data(dataset=args.dataset)
-    model = FGCN(nfeat=features.shape[1],
-                 nhid=args.hidden,
-                 nclass=nclass,
-                 dropout=args.dropout)
-    if args.cuda:
-        model.cuda()
-        features = features.cuda()
-    input = features
-elif model_type == "ProtoGCN":
+model_type = "ProtoGCN"  # Options: FGCN, ProtoGCN, BiGCN, MotifGCN, InterGCN, TPNet
+if model_type == "ProtoGCN":
+    #features, labels, idx_train, idx_val, idx_test, nclass = load_muse(args.data_path, dataset=args.dataset)
     features, labels, idx_train, idx_val, idx_test, nclass = load_muse_data(args.data_path, dataset=args.dataset)
     model = ProtoGCN(nfeat=features.shape[1],
                      nhid=args.hidden,
@@ -75,50 +66,7 @@ elif model_type == "ProtoGCN":
     if args.cuda:
         model.cuda()
         features, labels, idx_train = features.cuda(), labels.cuda(), idx_train.cuda()
-    input = (features, labels, idx_train)
-elif model_type == "BiGCN":
-    adj, motif_features, labels, idx_train, idx_val, idx_test, nclass = load_bigraph(args.data_path, dataset=args.dataset)
-    model = BiGCN(ts_out=100,
-                  motif_in=motif_features.shape[1],
-                  motif_out=50,
-                  nclass=nclass,
-                  dropout=args.dropout)
-    if args.cuda:
-        model.cuda()
-        adj, motif_features, labels, idx_train = adj.cuda(), motif_features.cuda(), labels.cuda(), idx_train.cuda()
-    input = (adj, motif_features, labels, idx_train)
-elif model_type == "MotifGCN":
-    adj, motif_features, labels, idx_train, idx_val, idx_test, nclass = load_bigraph(args.data_path, dataset=args.dataset)
-    model = MotifGCN(ts_out=100,
-                     motif_in=motif_features.shape[1],
-                     motif_out=50,
-                     nclass=nclass,
-                     dropout=args.dropout)
-    if args.cuda:
-        model.cuda()
-        adj, motif_features, labels, idx_train = adj.cuda(), motif_features.cuda(), labels.cuda(), idx_train.cuda()
-    input = (adj, motif_features, labels, idx_train)
-elif model_type == "InterGCN":
-    adj, motif_features, labels, idx_train, idx_val, idx_test, nclass = load_bigraph(args.data_path, dataset=args.dataset)
-    model = InterGCN(ts_out=100,
-                     motif_in=motif_features.shape[1],
-                     motif_out=50,
-                     nclass=nclass,
-                     dropout=args.dropout)
-    if args.cuda:
-        model.cuda()
-        adj, motif_features, labels, idx_train = adj.cuda(), motif_features.cuda(), labels.cuda(), idx_train.cuda()
-    input = (adj, motif_features, labels, idx_train)
-elif model_type == "TPNet":
-    ts, labels, idx_train, idx_val, idx_test, nclass = load_raw_ts(args.data_path, dataset=args.dataset)
-    model = TPNet(channel=ts.size(1),
-                  ts_length=ts.size(2),
-                  nclass=nclass,
-                  dropout=args.dropout)
-    if args.cuda:
-        model.cuda()
-        ts, labels, idx_train = ts.cuda(), labels.cuda(), idx_train.cuda()
-    input = (ts, labels, idx_train)
+    input = (features, labels, idx_train, idx_val, idx_test)
 
 # init the optimizer
 optimizer = optim.Adam(model.parameters(),
@@ -139,21 +87,20 @@ def train(epoch):
     loss_train.backward()
     optimizer.step()
 
-    # if not args.fastmode:
-    #     # Evaluate validation set performance separately,
-    #     # deactivates dropout during validation run.
-    #     model.eval()
-    #     output = model(features)
-
-    #print(output[idx_val])
     loss_val = F.cross_entropy(output[idx_val], torch.squeeze(labels[idx_val]))
     acc_val = accuracy(output[idx_val], labels[idx_val])
+
+    loss_test = F.cross_entropy(output[idx_test], torch.squeeze(labels[idx_test]))
+    acc_test = accuracy(output[idx_test], labels[idx_test])
+
     # print(output[idx_val])
     print('Epoch: {:04d}'.format(epoch+1),
-          'loss_train: {:.4f}'.format(loss_train.item()),
+          'loss_train: {:.7f}'.format(loss_train.item()),
           'acc_train: {:.4f}'.format(acc_train.item()),
-          'loss_val: {:.4f}'.format(loss_val.item()),
-          'acc_val: {:.4f}'.format(acc_val.item()),
+          # 'loss_val: {:.4f}'.format(loss_val.item()),
+          # 'acc_val: {:.4f}'.format(acc_val.item()),
+          'loss_test: {:.4f}'.format(loss_test.item()),
+          'acc_test: {:.4f}'.format(acc_test.item()),
           'time: {:.4f}s'.format(time.time() - t))
 
 
