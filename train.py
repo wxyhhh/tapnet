@@ -57,7 +57,7 @@ print("Loading dataset", args.dataset, "...")
 model_type = "ProtoGCN"  # Options: FGCN, ProtoGCN, BiGCN, MotifGCN, InterGCN, TPNet
 if model_type == "ProtoGCN":
     #features, labels, idx_train, idx_val, idx_test, nclass = load_muse(args.data_path, dataset=args.dataset)
-    features, labels, idx_train, idx_val, idx_test, nclass = load_muse_data(args.data_path, dataset=args.dataset)
+    features, labels, idx_train, idx_val, idx_test, nclass = load_muse_sparse(args.data_path, dataset=args.dataset)
     model = ProtoGCN(nfeat=features.shape[1],
                      nhid=args.hidden,
                      nclass=nclass,
