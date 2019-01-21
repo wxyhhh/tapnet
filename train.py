@@ -32,12 +32,12 @@ parser.add_argument('--ss', action='store_true', default=False,
 parser.add_argument('--seed', type=int, default=42, help='Random seed.')
 parser.add_argument('--epochs', type=int, default=10000,
                     help='Number of epochs to train.')
-parser.add_argument('--lr', type=float, default=0.00002,
+parser.add_argument('--lr', type=float, default=0.0000001,
                     help='Initial learning rate. default:[0.00005]')
-parser.add_argument('--weight_decay', type=float, default=5e-8,
+parser.add_argument('--weight_decay', type=float, default=5e-3,
                     help='Weight decay (L2 loss on parameters).')
-parser.add_argument('--hidden', type=int, default=64,
-                    help='Number of hidden units.')
+parser.add_argument('--layers', type=str, default="2000,1000,300",
+                    help='layer settings of mapping function.')
 parser.add_argument('--dropout', type=float, default=0,
                     help='Dropout rate (1 - keep probability). Default:0.5')
 
@@ -49,20 +49,24 @@ np.random.seed(args.seed)
 torch.manual_seed(args.seed)
 if args.cuda:
     torch.cuda.manual_seed(args.seed)
-
+args.sparse = True
+args.layers = [int(l) for l in args.layers.split(",")]
 # Load data
 # adj, features, labels, idx_train, idx_val, idx_test = load_data()
 print("Loading dataset", args.dataset, "...")
 # Model and optimizer
-model_type = "ProtoGCN"  # Options: FGCN, ProtoGCN, BiGCN, MotifGCN, InterGCN, TPNet
-if model_type == "ProtoGCN":
-    features, labels, idx_train, idx_val, idx_test, nclass = load_muse(args.data_path, dataset=args.dataset, sparse=True)
+model_type = "TapNet"  # Options: FGCN, ProtoGCN, BiGCN, MotifGCN, InterGCN, TPNet, TapNet
+if model_type == "TapNet":
+    if args.dataset=="ECG":
+        args.sparse = False
+
+    features, labels, idx_train, idx_val, idx_test, nclass = load_muse(args.data_path, dataset=args.dataset, sparse=args.sparse)
     #features, labels, idx_train, idx_val, idx_test, nclass = load_muse(args.data_path, dataset=args.dataset, sparse=True)
-    model = ProtoGCN(nfeat=features.shape[1],
-                     nhid=args.hidden,
-                     nclass=nclass,
-                     dropout=args.dropout,
-                     use_ss=False)
+    model = TapNet(nfeat=features.shape[1],
+                   layers=args.layers,
+                   nclass=nclass,
+                   dropout=args.dropout,
+                   use_ss=False)
     # cuda
     if args.cuda:
         model.cuda()

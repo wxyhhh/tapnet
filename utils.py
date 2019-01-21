@@ -70,13 +70,13 @@ def load_raw_ts(path, dataset, tensor_format=True):
     return ts, labels, idx_train, idx_val, idx_test, nclass
 
 
-def load_muse(data_path="./data/", dataset="ECG", sparse=False, tensor_format=True, shuffle=True):
+def load_muse(data_path="./data/", dataset="ECG", sparse=False, tensor_format=True, shuffle=False):
 
     if sparse:
         path = data_path + "muse_sparse/" + dataset + "/"
     else:
         path = data_path + "muse/" + dataset + "/"
-    file_header = dataset.lower() + "_"
+    file_header = dataset + "_"
 
     # load feature
     if sparse:
