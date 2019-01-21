@@ -19,15 +19,12 @@ class TapNet(nn.Module):
         for i in range(len(layers) - 2):
             self.mapping.add_module("fc_" + str(i), nn.Linear(layers[i], layers[i + 1]))
             self.mapping.add_module("bn_" + str(i), nn.BatchNorm1d(layers[i + 1]))
+            self.mapping.add_module("relu_" + str(i), nn.LeakyReLU())
 
         # add last layer
         self.mapping.add_module("fc_" + str(len(layers) - 2), nn.Linear(layers[-2], layers[-1]))
-        #
-        # self.linear_1 = nn.Linear(nfeat, fc_layers[0])
-        # self.linear_2 = nn.Linear(fc_layers[0], fc_layers[1])
-        # self.linear_3 = nn.Linear(fc_layers[1], fc_layers[2])
-        # self.bn_1 = nn.BatchNorm1d(fc_layers[0])
-        # self.bn_2 = nn.BatchNorm1d(fc_layers[1])
+        if len(layers) == 2:  # if only one layer, add batch normalization
+            self.mapping.add_module("bn_" + str(len(layers) - 2), nn.BatchNorm1d(layers[-1]))
 
         # Attention
         self.use_att = use_att
@@ -84,6 +81,11 @@ class TapNet(nn.Module):
         #dists = euclidean_dist(x, x_proto)
         #log_dists = F.log_softmax(-dists * 1e7, dim=1)
 
+        # prototype distance
+        proto_dists = euclidean_dist(x_proto, x_proto)
+        num_proto_pairs = int(self.nclass * (self.nclass - 1) / 2)
+        proto_dist = torch.sum(proto_dists) / num_proto_pairs
+
         if self.use_ss:
             semi_A = self.semi_att(x[idx_test])  # N_test * c
             semi_A = torch.transpose(semi_A, 1, 0)  # 1 * N_k
@@ -98,6 +100,6 @@ class TapNet(nn.Module):
             # x_proto_test = torch.transpose(torch.mm(torch.transpose(x[idx_test,], 0, 1), prob), 0, 1)
 
         dists = euclidean_dist(x, x_proto)
-        return -dists
+        return -dists, proto_dist
 
 

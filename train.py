@@ -29,14 +29,16 @@ parser.add_argument('--no-cuda', action='store_true', default=False,
 parser.add_argument('--ss', action='store_true', default=False,
                     help='Use semi-supervised learning.')
 parser.add_argument('--seed', type=int, default=42, help='Random seed.')
-parser.add_argument('--epochs', type=int, default=10000,
+parser.add_argument('--epochs', type=int, default=20000,
                     help='Number of epochs to train.')
 parser.add_argument('--lr', type=float, default=0.00005,
                     help='Initial learning rate. default:[0.00005]')
-parser.add_argument('--weight_decay', type=float, default=5e-3,
+parser.add_argument('--wd', type=float, default=5e-3,
                     help='Weight decay (L2 loss on parameters). default: 5e-3')
 parser.add_argument('--layers', type=str, default="2000,1000,300",
                     help='layer settings of mapping function.')
+parser.add_argument('--dist_param', type=float, default=0.00001,
+                    help='Parameter for prototype distances between classes. Default:0.01')
 parser.add_argument('--dropout', type=float, default=0,
                     help='Dropout rate (1 - keep probability). Default:0.5')
 
@@ -74,7 +76,7 @@ if model_type == "TapNet":
 
 # init the optimizer
 optimizer = optim.Adam(model.parameters(),
-                       lr=args.lr, weight_decay=args.weight_decay)
+                       lr=args.lr, weight_decay=args.wd)
 
 
 # training function
@@ -82,11 +84,11 @@ def train(epoch):
     t = time.time()
     model.train()
     optimizer.zero_grad()
-    output = model(input)
+    output, proto_dist = model(input)
     # print(features[idx_train])
     #print(output[idx_train])
 
-    loss_train = F.cross_entropy(output[idx_train], torch.squeeze(labels[idx_train]))
+    loss_train = F.cross_entropy(output[idx_train], torch.squeeze(labels[idx_train]))# - args.dist_param * proto_dist
     acc_train = accuracy(output[idx_train], labels[idx_train])
     loss_train.backward()
     optimizer.step()
