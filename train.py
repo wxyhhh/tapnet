@@ -11,7 +11,6 @@ import torch.optim as optim
 
 from utils import *
 from models import *
-from interpret_model import InterGCN
 
 datasets = ["ArticularyWordRecognition", "AtrialFibrilation", "BasicMotions", "CharacterTrajectories", "Cricket",
             "EigenWorms", "Epilepsy", "ERing", "EthanolConcentration", "FingerMovements",
@@ -32,10 +31,10 @@ parser.add_argument('--ss', action='store_true', default=False,
 parser.add_argument('--seed', type=int, default=42, help='Random seed.')
 parser.add_argument('--epochs', type=int, default=10000,
                     help='Number of epochs to train.')
-parser.add_argument('--lr', type=float, default=0.0000001,
+parser.add_argument('--lr', type=float, default=0.00005,
                     help='Initial learning rate. default:[0.00005]')
 parser.add_argument('--weight_decay', type=float, default=5e-3,
-                    help='Weight decay (L2 loss on parameters).')
+                    help='Weight decay (L2 loss on parameters). default: 5e-3')
 parser.add_argument('--layers', type=str, default="2000,1000,300",
                     help='layer settings of mapping function.')
 parser.add_argument('--dropout', type=float, default=0,
