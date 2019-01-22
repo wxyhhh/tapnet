@@ -71,7 +71,7 @@ if model_type == "TapNet":
                    layers=args.layers,
                    nclass=nclass,
                    dropout=args.dropout,
-                   use_ss=args.ss,
+                   use_ss=args.use_ss,
                    use_metric=args.use_metric)
     # cuda
     if args.cuda:
