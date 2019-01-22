@@ -18,16 +18,23 @@ datasets = ["ArticularyWordRecognition", "AtrialFibrilation", "BasicMotions", "C
             "LSST", "MotorImagery", "NATOPS", "PEMS-SF", "PenDigits",
             "Phoneme", "RacketSports", "SelfRegulationSCP1", "SelfRegulationSCP2", "SpokenArabicDigits",
             "StandWalkJump", "UWaveGestureLibrary", "", "", ""]
-# Training settings
+
 parser = argparse.ArgumentParser()
+
+# dataset settings
 parser.add_argument('--data_path', type=str, default="./data/",
                     help='the path of data.')
+parser.add_argument('--use_raw', action='store_true', default=True,
+                    help='whether to use the raw data. Default:False')
 parser.add_argument('--dataset', type=str, default="NATOPS",
                     help='time series dataset. Options: See the datasets list')
+
+# cuda settings
 parser.add_argument('--no-cuda', action='store_true', default=False,
                     help='Disables CUDA training.')
 parser.add_argument('--seed', type=int, default=42, help='Random seed.')
 
+# Training parameter settings
 parser.add_argument('--epochs', type=int, default=20000,
                     help='Number of epochs to train.')
 parser.add_argument('--lr', type=float, default=0.00005,
@@ -37,10 +44,11 @@ parser.add_argument('--wd', type=float, default=5e-3,
 parser.add_argument('--layers', type=str, default="2000,1000,300",
                     help='layer settings of mapping function.')
 
+# Training model settings
 parser.add_argument('--use_metric', action='store_true', default=False,
-                    help='whether to use the metric learning for class representation. Default:0.5')
-parser.add_argument('--metric_param', type=float, default=0.00001,
-                    help='Metric parameter for prototype distances between classes. Default:0.01')
+                    help='whether to use the metric learning for class representation. Default:False')
+parser.add_argument('--metric_param', type=float, default=0.000001,
+                    help='Metric parameter for prototype distances between classes. Default:0.000001')
 parser.add_argument('--use_ss', action='store_true', default=False,
                     help='Use semi-supervised learning.')
 parser.add_argument('--dropout', type=float, default=0,
@@ -65,9 +73,14 @@ if model_type == "TapNet":
     if args.dataset=="ECG":
         args.sparse = False
 
-    features, labels, idx_train, idx_val, idx_test, nclass = load_muse(args.data_path, dataset=args.dataset, sparse=args.sparse)
+    if args.use_raw:
+        features, labels, idx_train, idx_val, idx_test, nclass = load_raw_ts(args.data_path, dataset=args.dataset)
+    else:
+        features, labels, idx_train, idx_val, idx_test, nclass = load_muse(args.data_path, dataset=args.dataset, sparse=args.sparse)
+
     #features, labels, idx_train, idx_val, idx_test, nclass = load_muse(args.data_path, dataset=args.dataset, sparse=True)
     model = TapNet(nfeat=features.shape[1],
+                   len_ts=features.shape[2],
                    layers=args.layers,
                    nclass=nclass,
                    dropout=args.dropout,
@@ -95,7 +108,7 @@ def train(epoch):
 
     loss_train = F.cross_entropy(output[idx_train], torch.squeeze(labels[idx_train]))
     if args.use_metric:
-        loss_train = loss_train - args.dist_param * proto_dist
+        loss_train = loss_train - args.metric_param * proto_dist
     acc_train = accuracy(output[idx_train], labels[idx_train])
     loss_train.backward()
     optimizer.step()

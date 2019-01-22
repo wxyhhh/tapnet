@@ -2,7 +2,7 @@
 __pycache__/
 
 data
-
+cmd.txt
 # =================================
 cPickleche__/
 *.py[cod]
@@ -118,3 +118,4 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+

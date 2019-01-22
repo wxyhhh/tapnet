@@ -38,7 +38,7 @@ def loaddata(filename):
 
 
 def load_raw_ts(path, dataset, tensor_format=True):
-    path = path + dataset + "/"
+    path = path + "raw/" + dataset + "/"
     x_train = np.load(path + 'X_train.npy')
     y_train = np.load(path + 'y_train.npy')
     x_test = np.load(path + 'X_test.npy')
@@ -215,3 +215,10 @@ def euclidean_dist(x, y):
     y = y.unsqueeze(0).expand(n, m, d)
 
     return torch.pow(x - y, 2).sum(2)
+
+
+def output_conv_size(in_size, kernel_size, stride, padding):
+
+    output = int((in_size - kernel_size + 2 * padding) / stride) + 1
+
+    return output
