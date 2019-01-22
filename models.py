@@ -7,11 +7,12 @@ from utils import euclidean_dist, normalize
 
 class TapNet(nn.Module):
 
-    def __init__(self, nfeat, nclass, dropout, layers, use_att=True, use_ss=False):
+    def __init__(self, nfeat, nclass, dropout, layers, use_att=True, use_ss=False, use_metric=False):
         super(TapNet, self).__init__()
 
         self.nclass = nclass
         self.dropout = dropout
+        self.use_metric = use_metric
 
         # Representation mapping function
         layers = [nfeat] + layers

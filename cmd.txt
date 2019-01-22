@@ -1,1 +1,6 @@
-PenDigits
+
+python3 train.py --dataset PenDigits --lr 1e-5 --wd 1e-3 --layers 2000,300 --epoch 3000
+
+python3 train.py --dataset SelfRegulationSCP1 --lr 1e-4 --wd 0.1 --layers 2000,300 --epoch 30000
+
+python3 train.py --dataset SelfRegulationSCP2 --lr 1e-4 --wd 0.1 --layers 2000,300 --epoch 1000

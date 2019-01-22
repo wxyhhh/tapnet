@@ -26,9 +26,8 @@ parser.add_argument('--dataset', type=str, default="NATOPS",
                     help='time series dataset. Options: See the datasets list')
 parser.add_argument('--no-cuda', action='store_true', default=False,
                     help='Disables CUDA training.')
-parser.add_argument('--ss', action='store_true', default=False,
-                    help='Use semi-supervised learning.')
 parser.add_argument('--seed', type=int, default=42, help='Random seed.')
+
 parser.add_argument('--epochs', type=int, default=20000,
                     help='Number of epochs to train.')
 parser.add_argument('--lr', type=float, default=0.00005,
@@ -37,8 +36,13 @@ parser.add_argument('--wd', type=float, default=5e-3,
                     help='Weight decay (L2 loss on parameters). default: 5e-3')
 parser.add_argument('--layers', type=str, default="2000,1000,300",
                     help='layer settings of mapping function.')
-parser.add_argument('--dist_param', type=float, default=0.00001,
-                    help='Parameter for prototype distances between classes. Default:0.01')
+
+parser.add_argument('--use_metric', action='store_true', default=False,
+                    help='whether to use the metric learning for class representation. Default:0.5')
+parser.add_argument('--metric_param', type=float, default=0.00001,
+                    help='Metric parameter for prototype distances between classes. Default:0.01')
+parser.add_argument('--use_ss', action='store_true', default=False,
+                    help='Use semi-supervised learning.')
 parser.add_argument('--dropout', type=float, default=0,
                     help='Dropout rate (1 - keep probability). Default:0.5')
 
@@ -67,7 +71,8 @@ if model_type == "TapNet":
                    layers=args.layers,
                    nclass=nclass,
                    dropout=args.dropout,
-                   use_ss=False)
+                   use_ss=args.ss,
+                   use_metric=args.use_metric)
     # cuda
     if args.cuda:
         model.cuda()
@@ -88,7 +93,9 @@ def train(epoch):
     # print(features[idx_train])
     #print(output[idx_train])
 
-    loss_train = F.cross_entropy(output[idx_train], torch.squeeze(labels[idx_train]))# - args.dist_param * proto_dist
+    loss_train = F.cross_entropy(output[idx_train], torch.squeeze(labels[idx_train]))
+    if args.use_metric:
+        loss_train = loss_train - args.dist_param * proto_dist
     acc_train = accuracy(output[idx_train], labels[idx_train])
     loss_train.backward()
     optimizer.step()
