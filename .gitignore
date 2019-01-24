@@ -1,7 +1,8 @@
 .idea/
 __pycache__/
 
-data
+data/
+baseline/
 cmd.txt
 # =================================
 cPickleche__/

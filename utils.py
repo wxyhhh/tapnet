@@ -47,8 +47,7 @@ def load_raw_ts(path, dataset, tensor_format=True):
     ts = np.concatenate((x_train, x_test), axis=0)
     ts = np.transpose(ts, axes=(0, 2, 1))
     labels = np.concatenate((y_train, y_test), axis=0)
-
-    nclass = np.amax(labels) + 1
+    nclass = int(np.amax(labels)) + 1
 
     # total data size: 934
     train_size = y_train.shape[0]
