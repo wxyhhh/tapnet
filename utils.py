@@ -6,6 +6,10 @@ import torch
 import pandas as pd
 import random
 
+def boolean_string(s):
+    if s not in {'False', 'True'}:
+        raise ValueError('Not a valid boolean string')
+    return s == 'True'
 
 def encode_onehot(labels):
     classes = set(labels)

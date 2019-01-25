@@ -8,6 +8,9 @@ cmd.txt
 cPickleche__/
 *.py[cod]
 *$py.class
+tapnet/
+result/
+archived/
 
 # C extensions
 *.so

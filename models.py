@@ -1,22 +1,24 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from layers import GraphConvolution, BiGraphConv
 from utils import euclidean_dist, normalize, output_conv_size
-
+import numpy as np
 
 class TapNet(nn.Module):
 
-    def __init__(self, nfeat, len_ts, nclass, dropout, filters, kernels, layers, use_att=True, use_ss=False, use_metric=False,
-                 use_muse=False, use_lstm=False, use_cnn=True):
+    def __init__(self, nfeat, len_ts, nclass, dropout, filters, kernels, layers, use_rp, rp_params,
+                 use_att=True, use_ss=False, use_metric=False, use_muse=False, use_lstm=False, use_cnn=True):
         super(TapNet, self).__init__()
-
         self.nclass = nclass
         self.dropout = dropout
         self.use_metric = use_metric
         self.use_muse = use_muse
         self.use_lstm = use_lstm
         self.use_cnn = use_cnn
+
+        # parameters for random projection
+        self.use_rp = use_rp
+        self.rp_group, self.rp_dim = rp_params
 
         if not self.use_muse:
             # LSTM
@@ -30,12 +32,23 @@ class TapNet(nn.Module):
 
             # convolutional layer
             # features for each hidden layers
-            #out_channels = [256, 128, 256]
-            #filters = [256, 256, 128]
-            poolings = [2, 2, 2]
+            # out_channels = [256, 128, 256]
+            # filters = [256, 256, 128]
+            # poolings = [2, 2, 2]
             paddings = [0, 0, 0]
-            self.conv_1 = nn.Conv1d(self.channel, filters[0], kernel_size=kernels[0], stride=1, padding=paddings[0])
+            
+            if self.use_rp:
+                self.conv_1 = nn.ModuleList()
+                self.idx = []
+                for i in range(self.rp_group):
+                    self.conv_1.append(nn.Conv1d(self.rp_dim, filters[0], kernel_size=kernels[0], stride=1, padding=paddings[0]))
+                    #self.idx.append(torch.cuda.LongTensor(np.random.permutation(nfeat)[0:subdim_size]))
+                    self.idx.append(np.random.permutation(nfeat)[0: self.rp_dim])
+            else:
+                self.conv_1 = nn.Conv1d(self.channel, filters[0], kernel_size=kernels[0], stride=1, padding=paddings[0])
             # self.maxpool_1 = nn.MaxPool1d(poolings[0])
+            
+            
             self.conv_bn_1 = nn.BatchNorm1d(filters[0])
             self.conv_2 = nn.Conv1d(filters[0], filters[1], kernel_size=kernels[1], stride=1, padding=paddings[1])
             # self.maxpool_2 = nn.MaxPool1d(poolings[1])
@@ -53,10 +66,15 @@ class TapNet(nn.Module):
                 conv_size = len_ts
                 for i in range(len(filters)):
                     conv_size = output_conv_size(conv_size, kernels[i], 1, paddings[i])
-                fc_input += conv_size * filters[-1]
+                fc_input += conv_size 
+                #* filters[-1]
             if self.use_lstm:
-                fc_input += self.channel * self.lstm_dim
-
+                fc_input += conv_size * self.lstm_dim
+            
+            if self.use_rp:
+                fc_input = self.rp_group * filters[2] + self.lstm_dim
+                
+            
             # fc_input = 0
             # if self.use_cnn:
             #     conv_size = len_ts
@@ -68,6 +86,7 @@ class TapNet(nn.Module):
 
         # Representation mapping function
         layers = [fc_input] + layers
+        print("Layers", layers)
         self.mapping = nn.Sequential()
         for i in range(len(layers) - 2):
             self.mapping.add_module("fc_" + str(i), nn.Linear(layers[i], layers[i + 1]))
@@ -108,6 +127,8 @@ class TapNet(nn.Module):
                 nn.Linear(D, self.nclass)
             )
 
+        print(self.use_rp, self.rp_group, self.rp_dim)
+        
     def forward(self, input):
         x, labels, idx_train, idx_val, idx_test = input  # x is N * L, where L is the time-series feature dimension
 
@@ -117,33 +138,51 @@ class TapNet(nn.Module):
             # LSTM
             if self.use_lstm:
                 x_lstm = self.lstm(x)[0]
-                # x_lstm = self.dropout(x_lstm)
-                #x_lstm = torch.mean(x_lstm, 1)
+                x_lstm = x_lstm.mean(1)
                 x_lstm = x_lstm.view(N, -1)
 
             if self.use_cnn:
                 # Covolutional Network
                 # input ts: # N * C * L
-                x_conv = x
-                x_conv = self.conv_1(x_conv)  # N * C * L
-                x_conv = self.conv_bn_1(x_conv)
-                # ts = self.maxpool_1(ts)
-                x_conv = F.leaky_relu(x_conv)
+                if self.use_rp:
+                    for i in range(len(self.conv_1)):
+                        #x_conv = x
+                        #print("Path: "+str(i)+" Input Size: "+str(x_conv.size()))
+                        x_conv = self.conv_1[i](x[:, self.idx[i], :])
+                        x_conv = self.conv_bn_1(x_conv)
+                        x_conv = F.leaky_relu(x_conv)
 
-                x_conv = self.conv_2(x_conv)
-                x_conv = self.conv_bn_2(x_conv)
-                # ts = self.maxpool_2(ts)
-                x_conv = F.leaky_relu(x_conv)
+                        x_conv = self.conv_2(x_conv)
+                        x_conv = self.conv_bn_2(x_conv)
+                        x_conv = F.leaky_relu(x_conv)
 
-                x_conv = self.conv_3(x_conv)
-                x_conv = self.conv_bn_3(x_conv)
-                # ts = self.maxpool_3(ts)
-                x_conv = F.leaky_relu(x_conv)
+                        x_conv = self.conv_3(x_conv)
+                        x_conv = self.conv_bn_3(x_conv)
+                        x_conv = F.leaky_relu(x_conv)
 
-                #x_conv = torch.mean(x_conv, 1)
-                #aa = F.avg_pool1d(x_conv, kernel_size=3)
+                        x_conv = torch.mean(x_conv, 2)
 
-                x_conv = x_conv.view(N, -1)
+                        if i == 0:
+                            x_conv_sum = x_conv
+                        else:
+                            x_conv_sum = torch.cat([x_conv_sum, x_conv], dim=1)
+
+                    x_conv = x_conv_sum
+                else:
+                    x_conv = x
+                    x_conv = self.conv_1(x_conv)  # N * C * L
+                    x_conv = self.conv_bn_1(x_conv)
+                    x_conv = F.leaky_relu(x_conv)
+
+                    x_conv = self.conv_2(x_conv)
+                    x_conv = self.conv_bn_2(x_conv)
+                    x_conv = F.leaky_relu(x_conv)
+
+                    x_conv = self.conv_3(x_conv)
+                    x_conv = self.conv_bn_3(x_conv)
+                    x_conv = F.leaky_relu(x_conv)
+
+                    x_conv = x_conv.view(N, -1)
 
             if self.use_lstm and self.use_cnn:
                 x = torch.cat([x_conv, x_lstm], dim=1)
