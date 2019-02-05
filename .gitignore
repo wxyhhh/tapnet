@@ -124,3 +124,13 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
+*.svg
+plot/NATPOS_embeddings.txt
+plot/daily-minimum-temperatures.csv
+plot/CharacterTrajectories_embeddings_old.txt
+plot/CharacterTrajectories_embeddings.txt
+plot/CharacterTrajectories_embed.pdf
+plot/AtrialFibrillation_embeddings.txt
+plot/AtrialFibrillation_embed.pdf
+plot/ArticularyWordRecognition_embeddings.txt
+plot/daily-minimum-temperatures.csv

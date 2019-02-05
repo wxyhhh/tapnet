@@ -92,7 +92,17 @@ python3 train.py --dataset SpokenArabicDigits
 python3 train.py --dataset StandWalkJump
 python3 train.py --dataset UWaveGestureLibrary
 
-
+# ============== Semi-TapNet ===================
+python3 train.py --dataset ArticularyWordRecognition --dilation 10 --use_ss
+python3 train.py --dataset AtrialFibrillation --use_ss
+python3 train.py --dataset EigenWorms --dilation 200 --use_ss
+python3 train.py --dataset Epilepsy --use_ss
+python3 train.py --dataset Handwriting --use_ss
+python3 train.py --dataset Heartbeat --lr 1e-6 --use_ss
+python3 train.py --dataset JapaneseVowels --use_ss
+python3 train.py --dataset RacketSports --use_ss
+python3 train.py --dataset StandWalkJump --rp_params 3,1 --use_ss
+python3 train.py --dataset UWaveGestureLibrary --use_ss
 # ============================================================================================================================
 # Run lstmfcn
 <!--
@@ -172,3 +182,15 @@ python3 mlstam_classifer.py --dataset SelfRegulationSCP2
 python3 mlstam_classifer.py --dataset SpokenArabicDigits
 python3 mlstam_classifer.py --dataset StandWalkJump
 python3 mlstam_classifer.py --dataset UWaveGestureLibrary
+
+# ================
+nohup ./run_muse.sh FaceDetection 100 & # 0.503
+nohup ./run_muse.sh FaceDetection 50 & # 0.54499
+nohup ./run_muse.sh FaceDetection 30 & 0.54499
+nohup ./run_muse.sh FaceDetection 10 & 0.556
+
+nohup ./run_muse.sh HandMovementDirection 1 & # 0.365
+nohup ./run_muse.sh Heartbeat 1 & # 0.727
+nohup ./run_muse.sh PEMS-SF 1 &
+nohup ./run_muse.sh SpokenArabicDigits 1 & # 0.982
+nohup ./run_muse.sh Phoneme 1 &

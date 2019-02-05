@@ -225,3 +225,18 @@ def output_conv_size(in_size, kernel_size, stride, padding):
     output = int((in_size - kernel_size + 2 * padding) / stride) + 1
 
     return output
+
+def dump_embedding(proto_embed, sample_embed, labels, dump_file='./plot/embeddings.txt'):
+    proto_embed = proto_embed.cpu().detach().numpy()
+    sample_embed = sample_embed.cpu().detach().numpy()
+    embed = np.concatenate((proto_embed, sample_embed), axis=0)
+
+    nclass = proto_embed.shape[0]
+    labels = np.concatenate((np.asarray([i for i in range(nclass)]),
+                             labels.squeeze().cpu().detach().numpy()), axis=0)
+
+    with open(dump_file, 'w') as f:
+        for i in range(len(embed)):
+            label = str(labels[i])
+            line = label + "," + ",".join(["%.4f" % j for j in embed[i].tolist()])
+            f.write(line + '\n')
