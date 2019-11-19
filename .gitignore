@@ -134,3 +134,5 @@ plot/AtrialFibrillation_embeddings.txt
 plot/AtrialFibrillation_embed.pdf
 plot/ArticularyWordRecognition_embeddings.txt
 plot/daily-minimum-temperatures.csv
+.DS_Store
+data
