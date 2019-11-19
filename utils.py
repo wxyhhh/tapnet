@@ -42,7 +42,7 @@ def loaddata(filename):
 
 
 def load_raw_ts(path, dataset, tensor_format=True):
-    path = path + "raw/" + dataset + "/"
+    path = path + dataset + "/"
     x_train = np.load(path + 'X_train.npy')
     y_train = np.load(path + 'y_train.npy')
     x_test = np.load(path + 'X_test.npy')
