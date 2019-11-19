@@ -28,4 +28,4 @@ python train.py --dataset NATOPS
 
 (or by editing `train.py`)
 
-The default data is located at './data'.
+The default data is located at './dataset'.

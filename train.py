@@ -21,7 +21,7 @@ datasets = ["ArticularyWordRecognition", "AtrialFibrilation", "BasicMotions", "C
 parser = argparse.ArgumentParser()
 
 # dataset settings
-parser.add_argument('--data_path', type=str, default="./data/",
+parser.add_argument('--data_path', type=str, default="./dataset/",
                     help='the path of data.')
 parser.add_argument('--use_muse', action='store_true', default=False,
                     help='whether to use the raw data. Default:False')
@@ -146,7 +146,7 @@ if model_type == "TapNet":
                    use_rp=args.use_rp,
                    rp_params=args.rp_params
                    )
-    
+
     # cuda
     if args.cuda:
         model.cuda()
