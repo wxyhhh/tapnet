@@ -7,6 +7,7 @@ import time
 import argparse
 
 import torch.optim as optim
+from torch import nn
 from models import TapNet
 from utils import *
 import torch.nn.functional as F
@@ -49,7 +50,7 @@ parser.add_argument('--use_lstm', type=boolean_string, default=True,
                     help='whether to use LSTM for feature extraction. Default:False')
 parser.add_argument('--use_cnn', type=boolean_string, default=True,
                     help='whether to use CNN for feature extraction. Default:False')
-parser.add_argument('--use_rp', type=boolean_string, default=True,
+parser.add_argument('--use_rp', type=boolean_string, default=False,
                     help='Whether to use random projection')
 parser.add_argument('--rp_params', type=str, default='-1,3',
                     help='Parameters for random projection: number of random projection, '
@@ -150,7 +151,7 @@ if model_type == "TapNet":
     # cuda
     if args.cuda:
         model.cuda()
-        features, labels, idx_train = features.cuda(), labels.cuda(), idx_train.cuda()
+        labels, idx_train = labels.cuda(), idx_train.cuda()
     input = (features, labels, idx_train, idx_val, idx_test)
 
 # init the optimizer
@@ -159,33 +160,69 @@ optimizer = optim.Adam(model.parameters(),
 
 
 # training function
+device = torch.device("cuda")
 def train():
     loss_list = [sys.maxsize]
-    test_best_possible, best_so_far = 0.0, sys.maxsize
+    test_best_mae, best_so_far = sys.maxsize, sys.maxsize
+    step = int(idx_train.shape[0] / 1000)
     for epoch in range(args.epochs):
+        start = 0
+        for i in range(1000):
+            if i == 999:
+                batch_idx = range(start, idx_train.shape[0])
+            else:
+                batch_idx = range(start, start + step)
+            start += step
+            t = time.time()
+            model.train()
+            optimizer.zero_grad()
 
-        t = time.time()
-        model.train()
-        optimizer.zero_grad()
+            batch_input = features[batch_idx]
+            batch_input = batch_input.cuda()
+            output, upp = model(batch_input)
+            cos = nn.CosineSimilarity(eps=1e-9)
+
+            # x 360*300 upp 300*360
+            loss_train = (labels[batch_idx] - cos(output, upp)).pow(2).sum()
+            # mae = accuracy(output[idx_train], labels[idx_train])
+            scores_train = (cos(output, upp) + 1) / 2.
+            mae_train = torch.abs(scores_train - labels[batch_idx]).sum()
+            loss_train.backward()
+            optimizer.step()
+            if i == 999:
+                output_val, upp_val = model(features[idx_val])
+                loss_val = (labels[idx_val] - cos(output_val, upp_val)).pow(2).sum()
+                scores_val = (cos(output_val, upp_val) + 1) / 2.
+                mae_val = torch.abs(scores_val - labels[idx_val]).sum()
+                # print(output[idx_val])
+                print('Epoch: {:04d}'.format(epoch + 1),
+                      'loss_train: {:.8f}'.format(loss_train.item()),
+                      'mae_train: {:.4f}'.format(mae_train.item()),
+                      'loss_val: {:.4f}'.format(loss_val.item()),
+                      'mae_val: {:.4f}'.format(mae_val.item()),
+                      'time: {:.4f}s'.format(time.time() - t))
+
+                if mae_val.item() < test_best_mae:
+                    test_best_mae = mae_val.item()
+                if best_so_far > loss_train.item():
+                    best_so_far = loss_train.item()
+                    test_mae = mae_val.item()
 
         #new_input = (features[idx_train, ], labels[idx_train], idx_train, idx_val, idx_test)
-        output, proto_dist = model(input)
+        # loss_train, output = model(input)
         # print(features[idx_train])
         # print(output[idx_train])
 
-        loss_train = F.cross_entropy(output[idx_train], torch.squeeze(labels[idx_train]))
-        if args.use_metric:
-            loss_train = loss_train - args.metric_param * proto_dist
+        # loss_train = F.cross_entropy(output[idx_train], torch.squeeze(labels[idx_train]))
+        # if args.use_metric:
+        #     loss_train = loss_train - args.metric_param * proto_dist
+        #
+        # if abs(loss_train.item() - loss_list[-1]) < args.stop_thres \
+        #         or loss_train.item() > loss_list[-1]:
+        #     break
+        # else:
+        #     loss_list.append(loss_train.item())
 
-        if abs(loss_train.item() - loss_list[-1]) < args.stop_thres \
-                or loss_train.item() > loss_list[-1]:
-            break
-        else:
-            loss_list.append(loss_train.item())
-
-        acc_train = accuracy(output[idx_train], labels[idx_train])
-        loss_train.backward()
-        optimizer.step()
 
         # if not args.fastmode:
         #     # Evaluate validation set performance separately,
@@ -194,36 +231,44 @@ def train():
         #     output = model(features)
 
         #print(output[idx_val])
-        loss_val = F.cross_entropy(output[idx_val], torch.squeeze(labels[idx_val]))
-        acc_val = accuracy(output[idx_val], labels[idx_val])
-        # print(output[idx_val])
-        print('Epoch: {:04d}'.format(epoch + 1),
-              'loss_train: {:.8f}'.format(loss_train.item()),
-              'acc_train: {:.4f}'.format(acc_train.item()),
-              'loss_val: {:.4f}'.format(loss_val.item()),
-              'acc_val: {:.4f}'.format(acc_val.item()),
-              'time: {:.4f}s'.format(time.time() - t))
+        # loss_val = F.cross_entropy(output[idx_val], torch.squeeze(labels[idx_val]))
+        # acc_val = accuracy(output[idx_val], labels[idx_val])
+        # loss_val = (labels[idx_val] - cos(output[idx_val], upp[idx_val])).pow(2).sum()
+        # scores_val = (cos(output[idx_val], upp[idx_val]) + 1) / 2.
+        # mae_val = torch.abs(scores_val[idx_val] - labels[idx_val]).sum()
+        # # print(output[idx_val])
+        # print('Epoch: {:04d}'.format(epoch + 1),
+        #       'loss_train: {:.8f}'.format(loss_train.item()),
+        #       'mae_train: {:.4f}'.format(mae_train.item()),
+        #       'loss_val: {:.4f}'.format(loss_val.item()),
+        #       'mae_val: {:.4f}'.format(mae_val.item()),
+        #       'time: {:.4f}s'.format(time.time() - t))
 
-        if acc_val.item() > test_best_possible:
-            test_best_possible = acc_val.item()
-        if best_so_far > loss_train.item():
-            best_so_far = loss_train.item()
-            test_acc = acc_val.item()
-    print("test_acc: " + str(test_acc))
-    print("best possible: " + str(test_best_possible))
+        # if mae_val.item() < test_best_mae:
+        #     test_best_mae = mae_val.item()
+        # if best_so_far > loss_train.item():
+        #     best_so_far = loss_train.item()
+        #     test_mae = mae_val.item()
+    print("test_acc: " + str(test_mae))
+    print("best possible: " + str(test_best_mae))
 
 # test function
 def test():
-    output, proto_dist = model(input)
+    # output, proto_dist = model(input)
+    output, upp = model(input)
+    cos = nn.CosineSimilarity(eps=1e-9)
     #print(output[idx_test])
-    loss_test = F.cross_entropy(output[idx_test], torch.squeeze(labels[idx_test]))
-    if args.use_metric:
-        loss_test = loss_test - args.metric_param * proto_dist
-
-    acc_test = accuracy(output[idx_test], labels[idx_test])
+    loss_test = (labels[idx_test] - cos(output[idx_test], upp[idx_test])).pow(2).sum()
+    scores_test = (cos(output[idx_test], upp[idx_test]) + 1) / 2.
+    mae_test = torch.abs(scores_test[idx_test] - labels[idx_test]).sum()
+    # loss_test = F.cross_entropy(output[idx_test], torch.squeeze(labels[idx_test]))
+    # if args.use_metric:
+    #     loss_test = loss_test - args.metric_param * proto_dist
+    #
+    # acc_test = accuracy(output[idx_test], labels[idx_test])
     print(args.dataset, "Test set results:",
           "loss= {:.4f}".format(loss_test.item()),
-          "accuracy= {:.4f}".format(acc_test.item()))
+          "accuracy= {:.4f}".format(mae_test.item()))
 
 # Train model
 t_total = time.time()
