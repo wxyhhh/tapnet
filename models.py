@@ -7,7 +7,7 @@ import numpy as np
 class TapNet(nn.Module):
 
     def __init__(self, nfeat, len_ts, nclass, dropout, filters, kernels, dilation, layers, use_rp, rp_params,
-                 use_att=True, use_ss=False, use_metric=False, use_muse=False, use_lstm=False, use_cnn=True):
+                 use_att=False, use_ss=False, use_metric=False, use_muse=False, use_lstm=False, use_cnn=True):
         super(TapNet, self).__init__()
         self.nclass = nclass
         self.dropout = dropout
@@ -16,9 +16,11 @@ class TapNet(nn.Module):
         self.use_lstm = use_lstm
         self.use_cnn = use_cnn
 
+        print(nclass, len_ts, nfeat)
         # parameters for random projection
         self.use_rp = use_rp
         self.rp_group, self.rp_dim = rp_params
+        self.device = torch.device("cuda")
 
         if not self.use_muse:
             # LSTM
@@ -61,11 +63,11 @@ class TapNet(nn.Module):
                 conv_size = len_ts
                 for i in range(len(filters)):
                     conv_size = output_conv_size(conv_size, kernels[i], 1, paddings[i])
-                fc_input += conv_size 
+                fc_input += conv_size * filters[2]
                 #* filters[-1]
             if self.use_lstm:
                 fc_input += conv_size * self.lstm_dim
-            
+
             if self.use_rp:
                 fc_input = self.rp_group * filters[2] + self.lstm_dim
 
@@ -73,6 +75,11 @@ class TapNet(nn.Module):
         # Representation mapping function
         layers = [fc_input] + layers
         print("Layers", layers)
+
+        #prepare for the regression
+        self.proto = torch.zeros(layers[-1])
+        self.proto[0] = 1
+
         self.mapping = nn.Sequential()
         for i in range(len(layers) - 2):
             self.mapping.add_module("fc_" + str(i), nn.Linear(layers[i], layers[i + 1]))
@@ -107,10 +114,12 @@ class TapNet(nn.Module):
             )
 
         # print(self.use_rp, self.rp_group, self.rp_dim)
-        
-    def forward(self, input):
-        x, labels, idx_train, idx_val, idx_test = input  # x is N * L, where L is the time-series feature dimension
 
+    def forward(self, input):
+        # x , labels, idx_train, idx_val, idx_test= input  # x is N * L, where L is the time-series feature dimension
+        x = input
+
+        # print(x.shape)
         if not self.use_muse:
             N = x.size(0)
 
@@ -151,14 +160,19 @@ class TapNet(nn.Module):
                     x_conv = self.conv_1(x_conv)  # N * C * L
                     x_conv = self.conv_bn_1(x_conv)
                     x_conv = F.leaky_relu(x_conv)
+                    # print(x_conv.shape)
 
                     x_conv = self.conv_2(x_conv)
                     x_conv = self.conv_bn_2(x_conv)
                     x_conv = F.leaky_relu(x_conv)
+                    # print(x_conv.shape)
 
                     x_conv = self.conv_3(x_conv)
                     x_conv = self.conv_bn_3(x_conv)
                     x_conv = F.leaky_relu(x_conv)
+
+                   #  x_conv = torch.mean(x_conv, 2)
+                    # print(x_conv.shape)
 
                     x_conv = x_conv.view(N, -1)
 
@@ -171,39 +185,39 @@ class TapNet(nn.Module):
             #
 
         # linear mapping to low-dimensional space
+        # print(x.shape)
         x = self.mapping(x)
-
         # generate the class protocal with dimension C * D (nclass * dim)
-        proto_list = []
-        for i in range(self.nclass):
-            idx = (labels[idx_train].squeeze() == i).nonzero().squeeze(1)
-            if self.use_att:
-                #A = self.attention(x[idx_train][idx])  # N_k * 1
-                A = self.att_models[i](x[idx_train][idx])  # N_k * 1
-                A = torch.transpose(A, 1, 0)  # 1 * N_k
-                A = F.softmax(A, dim=1)  # softmax over N_k
-                #print(A)
-                class_repr = torch.mm(A, x[idx_train][idx]) # 1 * L
-                class_repr = torch.transpose(class_repr, 1, 0)  # L * 1
-            else:  # if do not use attention, simply use the mean of training samples with the same labels.
-                class_repr = x[idx_train][idx].mean(0)  # L * 1
-            proto_list.append(class_repr.view(1, -1))
-        x_proto = torch.cat(proto_list, dim=0)
+        # proto_list = []
+        # for i in range(self.nclass):
+        #     idx = (labels[idx_train].squeeze() == i).nonzero().squeeze(1)
+        #     if self.use_att:
+        #         #A = self.attention(x[idx_train][idx])  # N_k * 1
+        #         A = self.att_models[i](x[idx_train][idx])  # N_k * 1
+        #         A = torch.transpose(A, 1, 0)  # 1 * N_k
+        #         A = F.softmax(A, dim=1)  # softmax over N_k
+        #         #print(A)
+        #         class_repr = torch.mm(A, x[idx_train][idx]) # 1 * L
+        #         class_repr = torch.transpose(class_repr, 1, 0)  # L * 1
+        #     else:  # if do not use attention, simply use the mean of training samples with the same labels.
+        #         class_repr = x[idx_train][idx].mean(0)  # L * 1
+        #     proto_list.append(class_repr.view(1, -1))
+        # x_proto = torch.cat(proto_list, dim=0)
         #print(x_proto)
         #dists = euclidean_dist(x, x_proto)
         #log_dists = F.log_softmax(-dists * 1e7, dim=1)
 
         # prototype distance
-        proto_dists = euclidean_dist(x_proto, x_proto)
-        num_proto_pairs = int(self.nclass * (self.nclass - 1) / 2)
-        proto_dist = torch.sum(proto_dists) / num_proto_pairs
+        # proto_dists = euclidean_dist(x_proto, x_proto)
+        # num_proto_pairs = int(self.nclass * (self.nclass - 1) / 2)
+        # proto_dist = torch.sum(proto_dists) / num_proto_pairs
 
-        if self.use_ss:
-            semi_A = self.semi_att(x[idx_test])  # N_test * c
-            semi_A = torch.transpose(semi_A, 1, 0)  # c * N_test
-            semi_A = F.softmax(semi_A, dim=1)  # softmax over N_test
-            x_proto_test = torch.mm(semi_A, x[idx_test])  # c * L
-            x_proto = (x_proto + x_proto_test) / 2
+        # if self.use_ss:
+        #     semi_A = self.semi_att(x[idx_test])  # N_test * c
+        #     semi_A = torch.transpose(semi_A, 1, 0)  # c * N_test
+        #     semi_A = F.softmax(semi_A, dim=1)  # softmax over N_test
+        #     x_proto_test = torch.mm(semi_A, x[idx_test])  # c * L
+        #     x_proto = (x_proto + x_proto_test) / 2
 
             # solution 2
             # row_sum = 1 / torch.sum(-dists[idx_test,], dim=1)
@@ -211,10 +225,14 @@ class TapNet(nn.Module):
             # prob = torch.mul(-dists[idx_test,], row_sum)
             # x_proto_test = torch.transpose(torch.mm(torch.transpose(x[idx_test,], 0, 1), prob), 0, 1)
 
-        dists = euclidean_dist(x, x_proto)
+        # dists = euclidean_dist(x, x_proto)
 
         #dump_embedding(x_proto, torch.from_numpy())
-        dump_embedding(x_proto, x, labels)
-        return -dists, proto_dist
+        # dump_embedding(x_proto, x, labels)
+        # return -dists, proto_dist
+
+        upp = self.proto.view(-1, 1).repeat(1, x.shape[0]).to(self.device).t()
+
+        return x, upp
 
 

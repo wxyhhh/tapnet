@@ -64,7 +64,7 @@ def load_raw_ts(path, dataset, tensor_format=True):
     if tensor_format:
         # features = torch.FloatTensor(np.array(features))
         ts = torch.FloatTensor(np.array(ts))
-        labels = torch.LongTensor(labels)
+        labels = torch.FloatTensor(labels)
 
         idx_train = torch.LongTensor(idx_train)
         idx_val = torch.LongTensor(idx_val)
